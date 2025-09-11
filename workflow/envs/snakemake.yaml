@@ -1,0 +1,21 @@
+name: snakemake
+channels: 
+    - bioconda
+    - conda-forge
+dependencies: # unincluded packages with annoying dependencies: multiqc
+    - snakemake=7.32.4 # I'm scared of snakemake 8
+    - sra-tools
+    - fastp
+    - fastqc
+    - bowtie2
+    - star
+    - methylpy
+    - samtools
+    - sambamba
+    - bedtools
+    - matplotlib # this and below is for python scripts
+    - numpy
+    - pandas
+    - tqdm
+    - pysam
+    - genmap # there's one python script which uses this: generate_duplex_blacklists

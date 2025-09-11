@@ -1,0 +1,24 @@
+# Note: all boolean variables must be a lowercase string, i.e. 'true' (include the apostrophes)
+
+sample_table: sample_table.tsv  # name of file which contains sample info
+
+########################### Reference genome
+ref_fasta: https://www.arabidopsis.org/api/download-files/download?filePath=Genes/TAIR10_genome_release/TAIR10_chromosome_files/TAIR10_chr_all.fas.gz
+do_tair_chr_rename: 'true'    # whether to rename chromosomes from # -> Chr#, chloroplast -> ChrC, and mitochondria -> ChrM. I think this is no longer necessary
+ref_annotation: https://www.arabidopsis.org/api/download-files/download?filePath=Genes/TAIR10_genome_release/TAIR10_gff3/TAIR10_GFF3_genes_transposons.gff
+ref_annotation_file_ext: 'gff'  # file extension of ref_annotation
+
+########################### UMI extraction
+umi_extract_lens: '3+21' # passed to extract_umi.py --extract_lens, format is num bases to copy to read name (UMI) + num bases to trim from the start of the read
+
+########################### Adapter trimming
+# adapters to pass fastp for trimming, leave as empty strings for auto-detection
+trim_adapter_1: ''
+trim_adapter_2: ''
+
+########################### Alignment
+bowtie_args: '--time -X 800'    # extra arguments added to bowtie command
+star_args: '' # extra arguments added to STAR command
+methylpy_args: '--min-mapq 0' # extra arguments added to methylpy command, can use --aligner_options to pass to bowtie calls
+
+optical_duplicate_dist: 2500 # passed to samtools markdup, recommend 100 for HiSeq and 2500 for NovaSeq

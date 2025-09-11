@@ -1,0 +1,7 @@
+name: multiqc
+channels:
+    - bioconda
+    - conda-forge
+dependencies:
+    - python=3.7    # will try to download an old version of multiqc if this isn't here
+    - multiqc

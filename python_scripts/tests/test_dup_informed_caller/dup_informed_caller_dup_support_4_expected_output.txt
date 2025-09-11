@@ -1,0 +1,5 @@
+chrom	pos	ref	alt	f_sup	f_cov	r_sup	r_cov	mq	bq
+Chr1	9883	CA	*	1	1	1	1	K	
+Chr1	9983	A	C	1	1	0	0	K	F
+Chr1	9984	T	C	1	1	0	0	K	F
+Chr1	10152	A	G	0	0	1	1	K	F

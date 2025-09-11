@@ -1,0 +1,122 @@
+import pandas as pd
+import os
+
+##################### Load sample_table and validate it's content
+
+print('loading sample table')
+
+# load tsv containing SRRs
+df_samples = pd.read_table(workflow.basedir.rsplit('/', 1)[0] + '/' + (config['sample_table']), dtype={'run':str, 'group':str, 'subgroup':str, 'rep':str, 'paired':bool, 'aligner':str, 'umi':bool, 'dedup_pcr':bool, 'dedup_opt':bool, 'control':bool}, comment='#')
+
+# assert required columns are in sample_table
+if not {'group', 'subgroup', 'rep'}.issubset(set(df_samples.columns)):
+	print("ERROR: sample table must contain columns 'group', 'subgroup', and 'rep'")
+	exit()
+
+# use default values for missing columns
+default_vals = {'run': 'na', 'paired': True, 'aligner':'bowtie', 'umi': False, 'dedup_pcr': True, 'dedup_opt':True, 'control':False}
+for col in default_vals:
+	if col not in df_samples.columns:
+		print(f'WARNING: {col} not provided as a df_samples column, defaulting to {default_vals[col]}')
+		df_samples[col] = [default_vals[col]] * len(df_samples)
+
+df_samples = df_samples.set_index('run', drop=False) # set run as index
+
+chars = ''.join(df_samples.group.tolist() + df_samples.subgroup.tolist() + df_samples.rep.tolist())
+if '.' in chars or '_' in chars or ' ' in chars:
+	print('ERROR: periods, underscores, and spaces are not allowed in the group, subgroup, or rep field of the sample table')
+	exit()
+
+for rep in df_samples.rep:
+	if len(rep) >= len('merged') and rep[:6] == 'merged':
+		print('ERROR: sample table may not use "merged" as a replicate name')
+		exit()
+
+for aln in df_samples.aligner:
+	if aln not in ['bowtie', 'star', 'methylpy']:
+		print('ERROR: aligner must be "bowite" "star" or "methylpy" in sample table')
+		exit()
+
+if len(df_samples) != len(df_samples.drop_duplicates('group subgroup rep'.split())):
+	print('WARNING: multiple rows in sample table with the same group, subgroup, and rep. Ignoring the following rows:')
+	print(df_samples.duplicated('group subgroup rep'.split()))
+	df_samples = df_samples.drop_duplicates('group subgroup rep'.split())
+
+print('running with the following samples:')
+print(df_samples)
+
+####################### Define other useful things
+script_dir = workflow.basedir.rsplit('/', 1)[0] + '/python_scripts' # find the python script directory relative to the workflow rather than the working dir
+
+# returns a sample_table row which matches the group, subgroup, and rep provided in wildcards, source is just used in error messages
+def find_sample(w):
+	if w.rep == 'merged':
+		df_match = df_samples[(df_samples.group == w.group) & (df_samples.subgroup == w.subgroup)]
+		df_match = df_match.drop_duplicates(df_match.columns.difference(['run', 'rep']))
+		if len(df_match) > 1:
+			print(f'WARNING: replicates of {w.group} {w.subgroup} in sample table disagree in flag values, using the flags of the first repicate for merged files:')
+			print(df_match)
+		return df_match.iloc[0]
+	else:
+		df_match = df_samples[(df_samples.group == w.group) & (df_samples.subgroup == w.subgroup) & (df_samples.rep == w.rep)]
+		if len(df_match) == 0:
+			print('ERROR: find_sample failed to find "{}" in sample_table'.format(w))
+		assert len(df_match) == 1
+		return df_match.iloc[0]
+
+# do checks for replicates which disagree in columns other than run and rep
+from types import SimpleNamespace
+for g, s in set(zip(df_samples.group, df_samples.subgroup)):
+	find_sample(SimpleNamespace(**{'group':g, 'subgroup':s, 'rep':'merged'}))
+
+####################### Load other snakefiles (do this just before defining rules so the sample table and other things are inherited)
+
+include: 'align.smk'
+include: 'duplex.smk'
+
+####################### Rules
+rule align:
+	input: 
+		bams = expand('data/align/{group}_{subgroup}_{rep}_filtered.bam', zip, group=df_samples.group, subgroup=df_samples.subgroup, rep=df_samples.rep),
+		bais = expand('data/align/{group}_{subgroup}_{rep}_filtered.bam.bai', zip, group=df_samples.group, subgroup=df_samples.subgroup, rep=df_samples.rep)
+
+rule align_merged:
+    input:
+        bams = expand('data/align/{group}_{subgroup}_merged.bam', zip, group=df_samples.group, subgroup=df_samples.subgroup),
+        bais = expand('data/align/{group}_{subgroup}_merged.bam.bai', zip, group=df_samples.group, subgroup=df_samples.subgroup)
+
+rule individual_bigwigs:
+	input: expand('data/bigwigs/{group}_{subgroup}_{rep}.bw', zip, group=df_samples.group, subgroup=df_samples.subgroup, rep=df_samples.rep)
+		
+rule merged_bigwigs:
+	input: expand('data/bigwigs/{group}_{subgroup}_merged.bw', zip, group=df_samples.group, subgroup=df_samples.subgroup)
+	
+rule duplex_mutations:
+	input: 
+		muts = expand('data/variant/{group}_{subgroup}_merged_filtered.tsv', zip, group=df_samples.group, subgroup=df_samples.subgroup),
+		covs = expand('data/coverage/{group}_{subgroup}_merged_duplex/', zip, group=df_samples.group, subgroup=df_samples.subgroup)
+
+rule duplex_stats:
+	input:
+		metadata = 'data/metadata/duplex_metadata/',
+		filter_plot = 'data/metadata/duplex_filters.svg'
+
+rule benchmarks:
+	shell: 'python3.10 python_scripts/merge_snakemake_benchmarks.py benchmarks > benchmarks.tsv'
+rule gunzip:
+	input:
+		read1s = expand('data/fastq/{group}_{subgroup}_{rep}_1.fastq', zip, group=df_samples.group, subgroup=df_samples.subgroup, rep=df_samples.rep),
+		read2s = expand('data/fastq/{group}_{subgroup}_{rep}_2.fastq', zip, group=df_samples.group, subgroup=df_samples.subgroup, rep=df_samples.rep)
+# FIXME this doesn't work because of a cyclic graph exception
+# def find_compressed_fastqs(w):
+	# ret = []
+	# for r in df_samples.itertuples():
+		# if r.paired == True:
+			# ret.append('data/fastq/{r.group}_{r.subgroup}_{r.rep}_1.fastq.gz')
+			# ret.append('data/fastq/{r.group}_{r.subgroup}_{r.rep}_2.fastq.gz')
+		# else:
+			# ret.append('data/fastq/{r.group}_{r.subgroup}_{r.rep}.fastq.gz')
+	# return ret
+
+# rule compress:
+	# input: find_compressed_fastqs
