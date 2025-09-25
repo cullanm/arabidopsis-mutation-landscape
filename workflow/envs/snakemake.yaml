@@ -3,7 +3,7 @@ channels:
     - bioconda
     - conda-forge
 dependencies: # unincluded packages with annoying dependencies: multiqc
-    - snakemake=7.32.4 # I'm scared of snakemake 8
+    - snakemake>=7.22,<8 # likely works for versions 7.x.x, confirmed to work with 7.32.4
     - sra-tools
     - fastp
     - fastqc

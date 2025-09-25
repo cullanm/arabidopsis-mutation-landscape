@@ -12,7 +12,7 @@ mkdir {data dir}
 ### 2. Clone the repository
 ```
 cd {code dir}
-git clone https://github.com/cullanm/arabidopsis-mutation-landscape.git\ .
+git clone https://github.com/cullanm/arabidopsis-mutation-landscape.git .
 ```
 
 ### 3. Install Mamba
@@ -23,9 +23,13 @@ Either by following the installation instructions [here](https://mamba.readthedo
 mamba env create -f workflow/envs/snakemake.yaml
 ```
 
-### 5. Modify and run snakemake.sh
-Open the script `sub_scripts/snakemake.sh` and set the HOME_DIR and SCRATCH_DIR variables to {code dir} and {data dir} respectively. Comment out SCRIPT_PATH. If running locally, change the `--profile` parameter of the snakemake command to `${HOME_DIR}/smk_profiles/local`
+### 5. Modify snakemake.sh (and settings.json)
+Open the script `sub_scripts/snakemake.sh` and set the HOME_DIR and SCRATCH_DIR variables to {code dir} and {data dir} respectively. Comment out SCRIPT_PATH. If running locally, change the `--profile` parameter of the snakemake command to `${HOME_DIR}/smk_profiles/local`.
 
+If running on a SLURM cluster, you may need to change the partition name for sbatch commands found in `smk_profiles/slurm/settings.json`. 
+
+
+### 6. Run Snakemake
 If running locally:
 ```
 chmod +x sub_scripts/snakemake.sh
@@ -33,8 +37,9 @@ sub_scripts/snakemake.sh
 ```
 
 If running on a SLURM cluster:
-
-`sbatch sub_scripts/snakemake.sh`
+```
+sbatch sub_scripts/snakemake.sh
+```
 
 # Running with your own data
 To run the pipeline with different Duplex-seq data, do the following before step 5 above:

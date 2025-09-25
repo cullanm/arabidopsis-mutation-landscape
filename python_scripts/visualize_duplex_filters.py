@@ -30,7 +30,9 @@ calculated as (passing variants in swapped samples / callable coverage of swappe
 samples / callable coverage of real samples). Note: the callable coverage is static and does not adapt to changes in 
 filters, so it's best to use swapped samples made from the real samples to minimize any error introduced by this. 
 True positive count is estimated as the number of passing variants in real samples * (1 - false positive rate). C>T 
-rate refers to the fraction of passing variants in real samples which are C>T or G>A.
+rate refers to the fraction of passing variants in real samples which are C>T or G>A.|n
+Note: this script may require a large amount of memory, as it needs to hold all the input TSVs in memory. A preliminary 
+filter K is applied to reduce memory usage, so setting the END value of -K lower will reduce memory footprint.
     ''')
 parser.add_argument('-v', '--real_vars', required=True, dest='real_vars', metavar='TSV1', nargs='+', type=str,
                    help='variant TSV(s) of "real" (non-swapped) samples output by add_duplex_filter_columns.py')
@@ -64,8 +66,9 @@ parser.add_argument('-I', '--max_poly_at', dest='max_poly_at', metavar='INT,INT:
                    help='maximum length of a poly-A/T repeat ending at the variant position (default: 7,0:10:1)')
 parser.add_argument('-J', '--max_poly_rep', dest='max_poly_rep', metavar='INT,INT:INT:INT', type=str, default='4,0:10:1',
                    help='maximum length of a poly-di/trinucleotide repeat end at the variant position (default: 4,0:10:1)')
-parser.add_argument('-K', '--max_control_sup', dest='max_control_sup', metavar='INT,INT:INT:INT', type=str, default='3,0:50:1',
-                   help='maximum number of control sample fragments supporting the variant (default: 3,0:50:1)')
+parser.add_argument('-K', '--max_control_sup', dest='max_control_sup', metavar='INT,INT:INT:INT', type=str, default='3,0:40:1',
+                   help='maximum number of control sample fragments supporting the variant. The END value of this argument \
+                   affects how much memory the script requires with lower values reducing memory footprint (default: 3,0:40:1)')
 parser.add_argument('-L', '--max_frag_len', dest='max_frag_len', metavar='INT,INT:INT:INT', type=str, default='300,100:2000:100',
                    help='maximum fragment length (default: 300,100:2000:100)')
 parser.add_argument('-M', '--max_contamination_dist', dest='max_contamination_dist', metavar='INT,INT:INT:INT', type=str, default='4,0:10:1',
@@ -169,9 +172,13 @@ for fil in param_to_desc:
 
 dfs_real = []
 for f in args.real_vars:
-    df = pd.read_table(f, quoting=csv.QUOTE_NONE)
-    init_count = len(df)
-    df = df[df.control_sup <= max(sliders['max_control_sup'])]
+    init_count = 0
+    to_cat = []
+    for df_chunk in pd.read_table(f, quoting=csv.QUOTE_NONE, chunksize=100000):
+        init_count += len(df_chunk)
+        df_chunk = df_chunk[df_chunk.control_sup <= max(sliders['max_control_sup'])]
+        to_cat.append(df_chunk.copy())
+    df = pd.concat(to_cat)
     df = df.sort_values('chrom frag_start frag_len frag_umi pos ref alt'.split()) # first by fragment (filter_vars will do this, but doing it here keeps the order stable)
     dfs_real.append(df)
     sys.stderr.write(f'Loaded {init_count} variants from real file {f} and kept {len(df)} after pre-filtering on control_sup <= {max(sliders["max_control_sup"])}')
@@ -182,10 +189,14 @@ for f in args.real_vars:
 
 dfs_swapped = []
 for f in args.swapped_vars:
-    df = pd.read_table(f, quoting=csv.QUOTE_NONE)
-    init_count = len(df)
-    df = df[df.control_sup <= max(sliders['max_control_sup'])]
-    df.control_sup -= 2 # don't let the fragment contribute to its own control support
+    init_count = 0
+    to_cat = []
+    for df_chunk in pd.read_table(f, quoting=csv.QUOTE_NONE, chunksize=100000):
+        init_count += len(df_chunk)
+        df_chunk.control_sup -= 2 # don't let the fragment contribute to its own control support
+        df_chunk = df_chunk[df_chunk.control_sup <= max(sliders['max_control_sup'])]
+        to_cat.append(df_chunk.copy())
+    df = pd.concat(to_cat)
     df = df.sort_values('chrom frag_start frag_len frag_umi pos ref alt'.split()) # first by fragment (filter_vars will do this, but doing it here keeps the order stable)
     dfs_swapped.append(df)
     sys.stderr.write(f'Loaded {init_count} variants from swapped file {f} and kept {len(df)} after pre-filtering on control_sup <= {max(sliders["max_control_sup"])}')
