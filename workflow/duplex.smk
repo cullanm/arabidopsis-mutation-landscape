@@ -59,7 +59,8 @@ rule duplex_caller:
 	threads: 8
 	shell: 'python {script_dir}/duplex_caller.py -@ {threads} {params.umi} {input.bam} {output} &> {log}'
 
-# 
+# count the number of fragments supporting each variant, only consider fragments with at least 2 reads covering the site. 
+# Will be used in filtering the NanoSeq variants and determining their abundance in a sample
 rule dup_informed_caller:
 	input:
 		bam = 'data/align/{group}_{subgroup}_{rep}.bam',
@@ -75,7 +76,7 @@ rule add_duplex_filter_columns:
 	input: 
 		dup = 'data/variant/{group}_{subgroup}_{rep}_duplex.tsv',
 		inf = 'data/variant/{group}_{subgroup}_{rep}_informed.tsv',
-		controls = [f'data/variant/{r.group}_{r.subgroup}_merged_informed.tsv' for r in df_controls.itertuples()],
+		controls = lambda w: [f'data/variant/{r.group}_{r.subgroup}_merged_informed.tsv' for r in df_controls.itertuples() if not (r.group == w.group and r.subgroup == w.subgroup)],
 		blacklists = 'data/ref/duplex_blacklist/' # this also doesn't add the "/" when converted to text
 	output: 'data/variant/{group}_{subgroup}_{rep}_added.tsv'
 	log: 'logs/add_duplex_filter_columns_{group}_{subgroup}_{rep}.out'
@@ -87,7 +88,8 @@ rule filter_duplex_variants:
 	log: 
 		out = 'logs/filter_duplex_variants_{group}_{subgroup}_{rep}.out',
 		err = 'logs/filter_duplex_variants_{group}_{subgroup}_{rep}.err'
-	shell: 'python {script_dir}/add_duplex_filter_columns.py --input {input} --output {output} > {log.out} 2> {log.err}'
+	resources: mem_mb=4096
+	shell: 'python {script_dir}/filter_duplex_variants.py --input {input} --output {output} > {log.out} 2> {log.err}'
 
 rule duplex_coverage:
 	input: 
@@ -99,7 +101,7 @@ rule duplex_coverage:
 	params: 
 		umi = get_umi
 	threads: 8
-	shell: 'python {script_dir}/add_duplex_filter_columns.py -@ {threads} {params.umi} --blacklist {input.blacklists}/ {input.bam} {output}/ &> {log}'
+	shell: 'python {script_dir}/duplex_coverage.py -@ {threads} {params.umi} --blacklist {input.blacklists}/ {input.bam} {output}/ &> {log}'
 
 def warn_diff_umi(df):
 	if sum(df.umi) != len(df) and sum(df.umi) != 0:
@@ -130,14 +132,15 @@ rule duplex_strand_swapper:
 		warn = warn_diff_umi(df_controls),
 		umi = '--umi RX' if df_controls.iloc[0].umi else '--umi RG'
 	threads: 8
-	shell: 'python {script_dir}/duplex_strand_swapper.py {params.umi} --input {input.bams} --output {output} &> {log}'
+	shell: 'python {script_dir}/duplex_strand_swapper.py -@ {threads} {params.umi} --input {input.bams} --output {output} &> {log}'
 	
 rule visualize_duplex_filters:
 	input:
-		real_duplex = [f'data/variant/{r.group}_{r.subgroup}_merged_duplex.tsv' for r in df_controls.itertuples()],
+		real_duplex = [f'data/variant/{r.group}_{r.subgroup}_merged_added.tsv' for r in df_controls.itertuples()],
 		real_cov = [f'data/coverage/{r.group}_{r.subgroup}_merged_duplex/' for r in df_controls.itertuples()],
-		swapped_duplex = [f'data/variant/duplex_swapped_{i}_duplex.tsv' for i in range(4)],
+		swapped_duplex = [f'data/variant/duplex_swapped_{i}_added.tsv' for i in range(4)],
 		swapped_cov = [f'data/coverage/duplex_swapped_{i}_duplex/' for i in range(4)]
 	output: 'data/metadata/duplex_filters.svg'
+	resources: mem_mb=32768
 	log: 'logs/visualize_duplex_filters.out'
 	shell: 'python {script_dir}/visualize_duplex_filters.py --real_vars {input.real_duplex} --swapped_vars {input.swapped_duplex} --real_cov {input.real_cov}/ --swapped_cov {input.swapped_cov}/ --output {output} &> {log}'

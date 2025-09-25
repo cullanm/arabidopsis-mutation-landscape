@@ -162,7 +162,7 @@ rule extract_umi:
 	output: 
 		f = 'data/fastq/{group}_{subgroup}_{rep}_1_extracted.fastq',
 		r = 'data/fastq/{group}_{subgroup}_{rep}_2_extracted.fastq'
-	shell: 'python3.10 {script_dir}/extract_umi.py {input.f} {input.r} {output.f} {output.r}'
+	shell: 'python {script_dir}/extract_umi.py --transfer_len 3 --remove_len 7 {input.f} {input.r} {output.f} {output.r}'
 
 # determine whether the normal or umi extracted fastqs are needed for a sample
 def find_extracted_fastqs(w):

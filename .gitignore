@@ -2,7 +2,6 @@
 .idea/
 .ipynb_checkpoints/
 python_scripts/.ipynb_checkpoints/
-python_scripts/*.py
 python_scripts/__*
 data/
 tmp/
