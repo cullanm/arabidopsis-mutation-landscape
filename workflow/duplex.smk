@@ -142,5 +142,8 @@ rule visualize_duplex_filters:
 		swapped_cov = [f'data/coverage/duplex_swapped_{i}_duplex/' for i in range(4)]
 	output: 'data/metadata/duplex_filters.svg'
 	resources: mem_mb=32768
+	params: # need to add slashes to the end of the cov prefixes, as snakemake removes them from input
+		real_cov = lambda w, input: '/ '.join(input.real_cov) + '/',
+		swapped_cov = lambda w, input: '/ '.join(input.swapped_cov) + '/',
 	log: 'logs/visualize_duplex_filters.out'
-	shell: 'python {script_dir}/visualize_duplex_filters.py --real_vars {input.real_duplex} --swapped_vars {input.swapped_duplex} --real_cov {input.real_cov}/ --swapped_cov {input.swapped_cov}/ --output {output} &> {log}'
+	shell: 'python {script_dir}/visualize_duplex_filters.py --real_vars {input.real_duplex} --swapped_vars {input.swapped_duplex} --real_cov {params.real_cov} --swapped_cov {params.swapped_cov} --output {output} &> {log}'

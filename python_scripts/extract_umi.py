@@ -42,12 +42,10 @@ parser.add_argument(dest='fout1', metavar='READ1_OUTPUT', type=str,
                    help='where to output the modified read1 fastq')
 parser.add_argument(dest='fout2', metavar='READ2_OUTPUT', type=str, 
                    help='where to output the modified read2 fastq')
-parser.add_argument('-n', '--umi_len', dest='umi_len', metavar='INT', type=int, default=3,
+parser.add_argument('-t', '--transfer_len', dest='umi_len', metavar='INT', type=int, default=3,
                    help='number of bp to copy from the start of the read to the sequence id (default: 3)')
-parser.add_argument('-m', '--adap_len', dest='adap_len', metavar='INT', type=int, default=5,
+parser.add_argument('-r', '--remove_len', dest='adap_len', metavar='INT', type=int, default=5,
                    help='number of bp to remove from the start of the read (default: 5)')
-parser.add_argument('-e', '--extract_lens', dest='extract_lens', metavar='INT+INT', type=str, default=None,
-                   help='single argument for setting -n and -m in format "n+m". Overwrites -n and -m (default: 3+5)')
 parser.add_argument('-s', '--separator', dest='separator', metavar='STR', type=str, default='_',
                    help='separator between the initial read id and the UMI (default: _). Note, SAM file format does not allow whitespace in the read id')
 
@@ -56,10 +54,11 @@ try: # run this if in a jupyter notebook
     args = parser.parse_args('tests/test_extract_barcode/test_1.fastq tests/test_extract_barcode/test_2.fastq tests/test_extract_barcode/out_1.fastq tests/test_extract_barcode/out_2.fastq'.split()) # used for testing
 except: # run this if in a terminal
     args = parser.parse_args()
-    
-if args.extract_lens is not None:
-    args.umi_len = int(args.extract_lens.split('+')[0])
-    args.adap_len = int(args.extract_lens.split('+')[-1])
+
+if args.fout1 and '/' in args.fout1:
+    os.makedirs(os.path.dirname(args.fout1), exist_ok=True)
+if args.fout2 and '/' in args.fout2:
+    os.makedirs(os.path.dirname(args.fout2), exist_ok=True)
 
 
 # In[ ]:
@@ -96,7 +95,7 @@ while True:
     if r1_words[0] != r2_words[0]:
         print('ERROR: read1 and read2 are not in matched order')
         break
-    
+
     r1_bc = r1[1][:args.umi_len]
     r2_bc = r2[1][:args.umi_len]
     r1[0] = r1_words[0] + args.separator + r1_bc + r2_bc + ' ' + r1_words[1]
@@ -105,7 +104,7 @@ while True:
     r1[3] = r1[3][args.adap_len:]
     r2[1] = r2[1][args.adap_len:]
     r2[3] = r2[3][args.adap_len:]
-    
+
     for i in range(4):
         fout1.write(r1[i])
         fout2.write(r2[i])

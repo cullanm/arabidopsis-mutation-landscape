@@ -55,7 +55,8 @@ try: # run this if in a jupyter notebook
 except: # run this if in a terminal
     args = parser.parse_args()
 
-os.makedirs(os.path.dirname(args.tmp_prefix), exist_ok=True)
+if args.tmp_prefix and '/' in args.tmp_prefix:
+    os.makedirs(os.path.dirname(args.tmp_prefix), exist_ok=True)
 
 
 # In[ ]:
@@ -87,34 +88,34 @@ def subsample_frags(file_in, file_out, chrom):
     for x in aln_in.get_index_statistics():
         if x.contig == chrom:
             total_reads = x.total
-    
+
     for read in tqdm(aln_in.fetch(contig=chrom), mininterval=10, total=total_reads, desc=chrom):
         num_read += 1
-        
+
         # periodically flush out reads
         if num_read % buffer_size == 0 or num_read == total_reads:
             buffer_log.append(len(buffer))
 #             print(len(buffer))
-            
+
             new_fragments = defaultdict(lambda: [0, 0, [], []]) # will later overwrite fragments
             for x in fragments:
-                
+
                 # if the fragment start is past the reader position, don't consider outputting it yet, as more PCR dups may be found
                 if num_read != total_reads and x[0] >= frag_start:
                     new_fragments[x] = fragments[x]
-                    
+
                 # if there are enough reads in the fragment to meet the requirements, and the fragment is ranomly selected to output (-r)
                 elif fragments[x][0] >= args.strand_req // 2 and fragments[x][1] >= args.strand_req // 2 and fragments[x][0] + fragments[x][1] >= args.total_req // 2 and random.random() < args.random_frac:
                     num_frags += 1
                     if args.cap_at_req: # if subsampling PCR duplicates
                         # choose read names from each original strand without replacement
-                        
+
                         chosen_names = random.sample(fragments[x][2], k=args.strand_req // 2)
                         chosen_names += random.sample(fragments[x][3], k=args.strand_req // 2)
                         if args.total_req > args.strand_req * 2:
                             remaining_names = [name for name in fragments[x][2] + fragments[x][3] if name not in chosen_names]
                             chosen_names += random.sample(remaining_names, k=(args.total_req - 2 * args.strand_req) // 2)
-                            
+
                         for name in chosen_names: # add names to to_output
                             if name in to_output:
                                 to_output[name] += 1
@@ -129,7 +130,7 @@ def subsample_frags(file_in, file_out, chrom):
                 else: # if there aren't enough covering fragments, add reads to to_discard
                     to_discard.update(fragments[x][2])
                     to_discard.update(fragments[x][3])
-        
+
             new_buffer = [] # will later overwrite buffer
             done = False # when to stop outputting reads
             for x in buffer: # for each read in buffer
@@ -152,29 +153,29 @@ def subsample_frags(file_in, file_out, chrom):
                 else: # if don't know whether the read should be output yet, stop outputting to preserve sort order
                     done = True
                     new_buffer.append(x)
-            
+
             fragments = new_fragments
             buffer = new_buffer
-        
+
             buffer_log.append(len(buffer))
 
-        
+
         # thow out read pairs that don't align as expected
         if read.is_unmapped or read.mate_is_unmapped or not (read.flag & 2):
             continue
-        
+
         buffer.append(read)
-        
+
         if read.is_reverse: # ignore reverse reads so we don't double count each fragment
             continue
-        
+
         # find the fragment start and end. Used to find PCR duplicates
         frag_start = min(read.reference_start, read.next_reference_start)
         tlen = abs(read.template_length)
         umi = read.get_tag(args.umi)
-        
+
         read_strand = '-' if read.is_read2 else '+'
-        
+
         # add to the fragments read pair count and read name list
         if read_strand == '+':
             fragments[(frag_start, tlen, umi)][0] += 1
@@ -182,11 +183,12 @@ def subsample_frags(file_in, file_out, chrom):
         else:
             fragments[(frag_start, tlen, umi)][1] += 1
             fragments[(frag_start, tlen, umi)][3].append(read.query_name)
-        
+
         # FIXME this loop freezes on some chromosomes (e.g. Chr3 52%, Chr4 64%, Chr3 52%)
     aln_in.close()
     aln_out.close()
-    sys.stderr.write(f'completed chromosome {chrom}, wrote {num_written} reads and {num_frags} fragments,     max buffer size of {max(buffer_log)} reads at {buffer_log.index(max(buffer_log)) / len(buffer_log) * 100:.1f}%\n')
+    sys.stderr.write(f'completed chromosome {chrom}, wrote {num_written} reads and {num_frags} fragments, \
+    max buffer size of {max(buffer_log)} reads at {buffer_log.index(max(buffer_log)) / len(buffer_log) * 100:.1f}%\n')
 
 
 # # Make a file containing all reads from all high coverage fragments
@@ -228,7 +230,7 @@ p = subprocess.run(f'samtools cat -@ {args.threads} -o {args.output} {to_cat}', 
 if p.returncode != 0:
     sys.stderr.write(p.stderr)
     exit()
-    
+
 p = subprocess.run(f'rm {to_cat}', shell=True, capture_output=True)
 if p.returncode != 0:
     sys.stderr.write(p.stderr)

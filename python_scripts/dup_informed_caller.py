@@ -90,15 +90,11 @@ except:
     sys.stderr.write('ERROR: failed to open index file {}\n'.format(args.input + '.bai'))
     exit()
 
-# assert output file can be opened
-if args.output and '/' in args.output and not os.path.isdir(args.output.rsplit('/', 1)[0]):
-    sys.stderr.write('ERROR: failed to open output directory for file {}\n'.format(args.output))
-    exit()
+if args.output and '/' in args.output:
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
-# assert tmp dir can be opened
-if '/' in args.tmp and not os.path.isdir(args.tmp.rsplit('/', 1)[0]):
-    sys.stderr.write('ERROR: failed to open tmp directory {}\n'.format(args.tmp.rsplit('/', 1)[0]))
-    exit()
+if args.tmp and '/' in args.tmp:
+    os.makedirs(os.path.dirname(args.tmp), exist_ok=True)
 
 # set threads to num chromosomes + 1 if more were allocated
 if args.threads > len(aln.get_index_statistics()) + 1:
@@ -122,14 +118,14 @@ for i, read in enumerate(aln.fetch()):
         except KeyError:
             sys.stderr.write('ERROR: BAM file does not contain the "MD" tag\n')
             exit()
-    
+
     # check if current read aligned before previous read (out of order)
     nex = (read.reference_name, read.reference_start)
     if nex < last:
         sys.stderr.write('ERROR: BAM file is not coordinate sorted\n')
         exit()
     last = nex
-    
+
     # max_read_length = max(max_read_length, read.query_length)
     if i > 1000:
         break
@@ -168,31 +164,31 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                                     'bq': ''}) # base qualities of supporting reads
     frag_coverage = dict() # key is (frag_start, frag_length, strand, umi); value is array of read coverage over the fragment
     uncounted_frags = [] # frags in frag_coverage which haven't yet contributed to chrom_coverage
-    chrom_coverage = np.zeros((2, contig_len), dtype=np.intc) # forward [0] and reverse [1] coverage of contig (duplicates don't count)
+    chrom_coverage = np.zeros((3, contig_len), dtype=np.intc) # forward [0], reverse [1], and frag [2] coverage of contig (duplicates don't count)
     num_read = 0
     cur_pos = -1
     ready_to_flush = False
     output_file = open(output_filepath, 'w') # temporary output file
-    
+
     # initialize progress bar
     if draw_pbars:
         with lock:
             pbar = tqdm(total=total_reads, desc=contig, position=process_num, leave=True, mininterval=10, maxinterval=9999)
-    
+
     for read in aln.fetch(contig=contig):
         num_read += 1
-        
+
         # skip pairs that don't align as expected or don't pass the mq filter. this might cause incorrect coverage values if two mates have different mqs
         if read.is_unmapped or read.mate_is_unmapped or not (read.flag & 2) or read.mapping_quality < args.min_mq:
             continue
-            
+
         # determine the fragment start and length
         frag_start = min(read.reference_start, read.next_reference_start)
         frag_len = abs(read.template_length)
-        
+
         # split md tag into matches (numbers), mismatches (letters), and deletions (carat + letter(s)). non-matches are always separated by a number
         mds = re.findall('[0-9]+|[A-Z]|\^[A-Z]+', read.get_tag('MD'))
-        
+
         # change reference N mismatches to matches (e.g. ['3', 'N', '3'] -> ['7'])
         new_mds = []
         was_n = False
@@ -206,7 +202,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
             else:
                 new_mds.append(md)
         mds = new_mds
-        
+
         # change deletions of lenth >1 into multiple 1bp deletions (e.g. ['^AGC'] -> ['^A', '^G', '^C'])
         # new_mds = []
         # for md in mds:
@@ -216,7 +212,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
         #     else:
         #         new_mds.append(md)
         # mds = new_mds
-        
+
         cur_cig = 0 # keep track of the sum of cigar element lengths
         # find the insertions in the cigar, add them to mds as "*x", where x is the length of the insertion
         for cig in read.cigar:
@@ -242,23 +238,23 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                         cur_md += len(md) - 1
                     else: # if mismatch
                         cur_md += 1
-                        
+
             elif cig[0] != 0 and cig[0] != 2: # if not aligned nor deletion
                 with lock:
                     sys.stderr.write('WARNING: treating unexpected cigar char "{}" as match in read:\n{}\n'.format(cig[0], read))
             cur_cig += cig[1]
-        
+
         # remove spacer zeros (e.g. ['A', '0', 'T'] -> ['A', 'T'])
         mds = [md for md in mds if md != '0']
-                
+
         # example of how mds should now look: ['A', '3', 'C', 'G', '^TA', '9', '*2', '2']
-        
+
         # get the UMI tag
         if args.umi is None:
             umi = ''
         else:
             umi = read.get_tag(args.umi) 
-        
+
         # find and add all variants using md
         cur_md = 0 # current position in the read
         total_insertion_len = 0 # aligned read is
@@ -288,10 +284,10 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                     key_alt = read.query_sequence[cur_md]
                     qualities = chr(read.query_qualities[cur_md] + 33)
                     cur_md += 1
-                
+
                 key = (key_pos, key_ref, key_alt,
                        frag_start, frag_len, umi)
-                    
+
                 # add variants to dictionary
                 if read.is_reverse:
                     variants[key]['r_sup'] += 1
@@ -299,20 +295,20 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                     variants[key]['f_sup'] += 1
                 variants[key]['mq'] += chr(read.mapping_quality + 33)
                 variants[key]['bq'] += qualities
-        
+
         # add coverage of fragment to frag_coverage (and to chrom_coverage if a duplicate wasn't counted yet)
         frag = (frag_start, frag_len, umi)
-        
+
         # if this is the first read seen of a fragment, add it to the frag_coverage dict
         if frag not in frag_coverage: 
             frag_coverage[frag] = np.zeros((2, frag[1]), dtype=np.short)
             uncounted_frags.append(frag)
-        
+
         # add the coverage of the read and it's mate to frag_coverage
         if not read.is_reverse: # only run for forward reads, since we find these first and can infer reverse read coverage using read.next_reference_start
             frag_coverage[frag][0, :read.reference_length] += 1
             frag_coverage[frag][1, read.next_reference_start - read.reference_start:] += 1
-            
+
         # periodically flush variants and coverage info out of the dictionaries
         if num_read % args.chunk_size == 0:
             if draw_pbars:
@@ -323,7 +319,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
         if (ready_to_flush and read.reference_start > cur_pos) or num_read == total_reads:
             # variants = defaultdict(variants.default_factory, {key: val for key, val in sorted(variants.items(), key=lambda ele: ele[0])}) # sort by position, not necessary
             cur_pos = read.reference_start
-            
+
             # compute chromosome level coverage up to cur_pos
             last_counted_frag = -1
             for i, f in enumerate(uncounted_frags):
@@ -334,14 +330,16 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                 high_cov_mask = total_frag_cov >= args.duplicate_sup # positions in the fragment with enough coverage to pass the duplicate_sup requirement, only these positions should contribute to coverage
                 high_cov_forward = np.logical_and(high_cov_mask, frag_coverage[f][0]) # positions with enough coverage and >0 coverage from forward reads
                 high_cov_reverse = np.logical_and(high_cov_mask, frag_coverage[f][1]) # same but for reverse reads
+                high_cov_any = np.logical_or(high_cov_forward, high_cov_reverse)
 
                 # add positions with sufficient coverage to chrom_coverage
                 chrom_coverage[0, f[0]:f[0] + f[1]] += high_cov_forward
                 chrom_coverage[1, f[0]:f[0] + f[1]] += high_cov_reverse
-                
+                chrom_coverage[2, f[0]:f[0] + f[1]] += high_cov_any
+
                 last_counted_frag = i
             uncounted_frags = uncounted_frags[last_counted_frag + 1:] # remove all counted fragments
-            
+
             # group variants from multiple fragments
             to_flush = dict() # key is (pos, ref, alt) value is [f_sup, r_sup]
             to_del = set()
@@ -358,7 +356,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                     to_flush[glob_var][0] += 1 if f_cov > 0 else 0
                     to_flush[glob_var][1] += 1 if r_cov > 0 else 0
                     to_flush[glob_var][2] += sorted(v['mq'])[len(v['mq']) // 2] # take median mq
-                    
+
                     # take median bq(s)
                     if var[1] == '*': # if insertion
                         for i in range(len(var[2])): # get the median bq of each position (e.g. for a bq of 123456, output median(1,3,5) median(2,4,6))
@@ -377,7 +375,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                 f_cov = chrom_coverage[0, var[0]]
                 r_cov = chrom_coverage[1, var[0]]
                 sup = to_flush[var]
-                
+
                 # check if enough support
                 if (sup[0] >= args.min_strand_support) and (sup[1] >= args.min_strand_support) and (sup[0] + sup[1] >= args.min_support):
                     output_vals = [contig] + list(var) + [sup[0], f_cov, sup[1], r_cov, sup[2], sup[3]]
@@ -392,7 +390,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
             for frag in to_flush:
                 del frag_coverage[frag]
             ready_to_flush = False
-    
+
     pbar.close()
     output_file.close()
     tqdm.write(f'finished calling {contig}\n', file=sys.stderr)

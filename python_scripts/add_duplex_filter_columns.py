@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 import sys
@@ -12,7 +12,7 @@ import numpy as np
 import argparse
 
 
-# In[2]:
+# In[ ]:
 
 
 parser = argparse.ArgumentParser(description='''
@@ -55,23 +55,22 @@ parser.add_argument('-b', '--blacklists', required=True, dest='blacklist_prefix'
 parser.add_argument('-o', '--output', dest='output_tsv', metavar='TSV', type=str,
                    help='output tsv. Will have the same variants as --input but with extra columns added (default: stdout)')
 
-try: # run this if in a jupyter notebook
-    get_ipython()
+if gtools.running_notebook(): # run this if in a jupyter notebook
     print('Determined code is running in Jupyter')
     if os.getcwd()[:8] != '/scratch': # switch to the scratch directory where all the data files are
         os.chdir(f'/scratch/cam02551/{os.getcwd().split("/")[-2]}')
     args = parser.parse_args('-i data/variant/big_Col-0-1_duplex_strandsup.tsv -o tmp/test_add_duplex.tsv -f data/variant/big_Col-0-1_informed_freq.tsv -b data/blacklist/arabidopsis/duplex_blacklist_ -c data/variant/big_Col-0-2_informed_control.tsv data/variant/big_Col-0-3_informed_control.tsv'.split()) # used for testing
-except: # run this if in a terminal
+else: # run this if in a terminal
     args = parser.parse_args()
 
-if args.output_tsv is not None:
+if args.output_tsv is not None and '/' in args.output_tsv:
     os.makedirs(os.path.dirname(args.output_tsv), exist_ok=True)
 sys.stderr.write('Running add_duplex_filter_columns.py with arguments:\n' + '\n'.join([f'{key}={val}' for key, val in vars(args).items()]) + '\n')
 
 
 # # Load blacklists
 
-# In[3]:
+# In[ ]:
 
 
 # find all chromosomes in the input
@@ -85,7 +84,7 @@ with open(args.duplex_tsv, 'r') as f:
         total_lines += 1
 
 
-# In[4]:
+# In[ ]:
 
 
 sys.stderr.write('loading blacklists\n')
@@ -102,7 +101,7 @@ for chrom in tqdm(chroms):
     bl_poly_rep[chrom] = np.load(f'{args.blacklist_prefix}{chrom}_poly_repeat_length.npy')    
 
 
-# In[5]:
+# In[ ]:
 
 
 def line_to_var(line):
@@ -111,7 +110,7 @@ def line_to_var(line):
     return var
 
 
-# In[6]:
+# In[ ]:
 
 
 # def add_mut_info(call_file, freq_file, control_files, output_file):
@@ -127,14 +126,14 @@ try:
     dcs = {x:i for i, x in enumerate(next(f_call)[:-1].split('\t'))} # converts a column name to column index for duplex_caller tsv
     ics = {x:i for i, x in enumerate(next(f_freq)[:-1].split('\t'))} # converts a column name to column index for dup_informed_caller tsv
     [next(f) for f in f_conts]
-    
+
     # write the output header with extra columns
     f_out.write('\t'.join(list(dcs.keys()) + 'high_sup avg_mq cov_per dup_dist poly_at poly_rep sample_sup sample_cov control_sup'.split()) + '\n')
 
     # load the first freq and control variants
     cur_freq = line_to_var(next(f_freq))
     cur_conts = [line_to_var(next(f)) for f in f_conts]
-    
+
 except StopIteration as e:
     sys.stderr.write(f'ERROR: one of the input tsvs is empty\n')
     sys.stderr.write(e)
@@ -206,7 +205,7 @@ for f in f_conts:
 f_out.close()
 
 
-# In[7]:
+# In[ ]:
 
 
 sys.stderr.write(f'completed add_duplex_filter_columns.py on {args.duplex_tsv}\n')

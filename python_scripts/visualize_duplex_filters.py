@@ -96,7 +96,9 @@ if gtools.running_notebook():
     print('Determined code is running in Jupyter')
     if os.getcwd()[:8] != '/scratch': # switch to the scratch directory where all the data files are
         os.chdir(f'/scratch/cam02551/{os.getcwd().split("/")[-2]}')
-    args = parser.parse_args('-v tmp/added_info_Col-0-1.tsv -V tmp/added_info_Col-0-swapped-1.tsv -w data/coverage/2f1r/big_Col-0-1_ -W data/coverage/2f1r/big_Col-0-swapped-1_ -o tmp/visualize_testing.png'.split()) # used for testing
+
+    args = parser.parse_args('--real_vars data/variant/untreated_1_merged_added.tsv data/variant/untreated_2_merged_added.tsv data/variant/untreated_3_merged_added.tsv data/variant/untreated_4_merged_added.tsv data/variant/untreated_5_merged_added.tsv data/variant/untreated_6_merged_added.tsv data/variant/untreated_7_merged_added.tsv data/variant/untreated_8_merged_added.tsv --swapped_vars data/variant/duplex_swapped_0_added.tsv data/variant/duplex_swapped_1_added.tsv data/variant/duplex_swapped_2_added.tsv data/variant/duplex_swapped_3_added.tsv --real_cov data/coverage/untreated_1_merged_duplex/ data/coverage/untreated_2_merged_duplex/ data/coverage/untreated_3_merged_duplex/ data/coverage/untreated_4_merged_duplex/ data/coverage/untreated_5_merged_duplex/ data/coverage/untreated_6_merged_duplex/ data/coverage/untreated_7_merged_duplex/ data/coverage/untreated_8_merged_duplex/ --swapped_cov data/coverage/duplex_swapped_0_duplex/ data/coverage/duplex_swapped_1_duplex/ data/coverage/duplex_swapped_2_duplex/ data/coverage/duplex_swapped_3_duplex/ --output data/metadata/duplex_filters.svg'.split()) # used for testing
+    # args = parser.parse_args('-v tmp/added_info_Col-0-1.tsv -V tmp/added_info_Col-0-swapped-1.tsv -w data/coverage/2f1r/big_Col-0-1_ -W data/coverage/2f1r/big_Col-0-swapped-1_ -o tmp/visualize_testing.png'.split()) # used for testing
 else: # run this if in a terminal
     args = parser.parse_args()
 
@@ -174,14 +176,14 @@ dfs_real = []
 for f in args.real_vars:
     init_count = 0
     to_cat = []
-    for df_chunk in pd.read_table(f, quoting=csv.QUOTE_NONE, chunksize=100000):
+    for df_chunk in pd.read_table(f, quoting=csv.QUOTE_NONE, chunksize=100000, dtype={'mq':str, 'bq':str}):
         init_count += len(df_chunk)
         df_chunk = df_chunk[df_chunk.control_sup <= max(sliders['max_control_sup'])]
         to_cat.append(df_chunk.copy())
     df = pd.concat(to_cat)
     df = df.sort_values('chrom frag_start frag_len frag_umi pos ref alt'.split()) # first by fragment (filter_vars will do this, but doing it here keeps the order stable)
     dfs_real.append(df)
-    sys.stderr.write(f'Loaded {init_count} variants from real file {f} and kept {len(df)} after pre-filtering on control_sup <= {max(sliders["max_control_sup"])}')
+    sys.stderr.write(f'Loaded {init_count} variants from real file {f} and kept {len(df)} after pre-filtering on control_sup <= {max(sliders["max_control_sup"])}\n')
 
 
 # In[ ]:
@@ -191,7 +193,7 @@ dfs_swapped = []
 for f in args.swapped_vars:
     init_count = 0
     to_cat = []
-    for df_chunk in pd.read_table(f, quoting=csv.QUOTE_NONE, chunksize=100000):
+    for df_chunk in pd.read_table(f, quoting=csv.QUOTE_NONE, chunksize=100000, dtype={'mq':str, 'bq':str}):
         init_count += len(df_chunk)
         df_chunk.control_sup -= 2 # don't let the fragment contribute to its own control support
         df_chunk = df_chunk[df_chunk.control_sup <= max(sliders['max_control_sup'])]
@@ -199,7 +201,7 @@ for f in args.swapped_vars:
     df = pd.concat(to_cat)
     df = df.sort_values('chrom frag_start frag_len frag_umi pos ref alt'.split()) # first by fragment (filter_vars will do this, but doing it here keeps the order stable)
     dfs_swapped.append(df)
-    sys.stderr.write(f'Loaded {init_count} variants from swapped file {f} and kept {len(df)} after pre-filtering on control_sup <= {max(sliders["max_control_sup"])}')
+    sys.stderr.write(f'Loaded {init_count} variants from swapped file {f} and kept {len(df)} after pre-filtering on control_sup <= {max(sliders["max_control_sup"])}\n')
 
 
 # In[ ]:
@@ -274,7 +276,7 @@ def filter_vars(df, filter_cutoffs):
     # skip M for now because it requires a slow sort
     df['N'] = (df.f_read1_sup / df.f_read1_cov >= filter_cutoffs['min_frac_final']) & (df.r_read1_sup / df.r_read1_cov >= filter_cutoffs['min_frac_final'])
     df['O'] = (df.dup_dist >= filter_cutoffs['min_hamming_dist'])
-    df['P'] = (df.cov_per >= filter_cutoffs['max_cov_percentile'])
+    df['P'] = (df.cov_per <= filter_cutoffs['max_cov_percentile'])
     df['Q'] = ((df.f_sup > 0) & (df.r_sup > 0)) if filter_cutoffs['require_overlap'] else True
 
     df = df[df.A & df.B & df.C & df.D & df.E & df.F & df.H & df.I & df.J & df.K & df.L]

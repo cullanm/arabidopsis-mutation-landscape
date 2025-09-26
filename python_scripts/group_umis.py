@@ -41,8 +41,8 @@ parser.add_argument('-f', '--no_flip', dest='flip', action='store_false',
 parser.add_argument('-a', '--append', dest='append_umi', metavar='STR', type=str, default='',
                    help='append an arbitrary string to the end of all RX tags, useful when the output will later be \
                    merged with other files which could have UMI conflicts')
-parser.add_argument('-e', '--edit_distance', dest='edit_distance', metavar='INT', type=int, default=1,
-                   help='max edit (hamming) distance to use when clustering UMIs (default: 1)')
+parser.add_argument('-e', '--edit_distance', dest='edit_distance', metavar='INT', type=int, default=0,
+                   help='max edit (hamming) distance to use when clustering UMIs (default: 0)')
 parser.add_argument('-b', '--bp_distance', dest='bp_distance', metavar='INT', type=int, default=0,
                    help='max bp distance the template start and end can differ by when clustering UMIs (default: 0)')
 parser.add_argument('-t', '--tmp', dest='tmp', metavar='PREFIX', type=str, default='./',
@@ -61,6 +61,9 @@ try: # run this if in a jupyter notebook
 except: # run this if in a terminal
     args = parser.parse_args()
 
+if args.fout and '/' in args.fout:
+    os.makedirs(os.path.dirname(args.fout), exist_ok=True)
+
 sys.stderr.write(f'Running group_umis.py with arguments {args}\n')
 
 
@@ -78,7 +81,7 @@ except ValueError:
         sys.stderr.write('ERROR: failed to run samtools index on input\n')
         sys.stderr.write(proc.stderr)
         sys.exit(1)
-    
+
 # confirm that file is coordinate sorted and has a UMI        
 aln = pysam.AlignmentFile(args.fin, 'rb')
 last = ('', 0)
@@ -116,12 +119,12 @@ def group_umis(fin, fout, chrom, total):
     aln_in = pysam.AlignmentFile(fin, 'rb')
     aln_out = pysam.AlignmentFile(fout, 'wb', template=aln_in)
     read_iter = aln_in.fetch(contig=chrom)
-    
+
     cur_umi_counts = defaultdict(lambda: defaultdict(lambda: 0)) # cur_umi_counts[fragment end][raw umi] = number of forward reads with the umi
     cur_reads = [] # list of (fragment end, umi, read) tuples
     name_to_umi = dict() # key: read name, value: (umi id, corrected umi)
     cur_id = 0
-    
+
     pbar = tqdm(miniters=50000, position=0, total=total, desc=chrom, maxinterval=9999)
     read = next(read_iter, None) # get the first read
     pbar.update()
@@ -138,10 +141,10 @@ def group_umis(fin, fout, chrom, total):
             umi = umi[len(umi) // 2:len(umi)] + umi[:len(umi) // 2]
         tlen = abs(read.template_length)
         cur_reads.append((tlen, umi, read))
-        
+
         if not read.is_reverse:
             cur_umi_counts[abs(read.template_length)][umi] += 1
-            
+
         # if read.query_name == 'lh00134:636:22M5YKLT4:7:2231:8378:14340_TGGTTA':
         #     if read.is_reverse:
         #         print('found reverse read')
@@ -150,20 +153,20 @@ def group_umis(fin, fout, chrom, total):
         #     # print(read.is_reverse)
         #     # print(read.reference_start, read.next_reference_start)
         #     print(dict(cur_umi_counts))
-            
+
         read = next(read_iter, None) # get the next read
         pbar.update()
         while (read is not None) and (not read.is_proper_pair): # skip all reads that aren't proper pairs (flag 2)
             read = next(read_iter, None)
             pbar.update()
-        
+
         # if read.query_name == 'lh00134:636:22M5YKLT4:7:2231:8378:14340_TGGTTA':
         #     print(f'proper pair? {read.is_proper_pair}')
         #     if read.is_reverse:
         #         print('found reverse read')
         #     else:
         #         print('found forward read')
-        
+
         # if we advanced to a new start position, flush the reads of the previous one
         if read is None or read.reference_start > cur_pos:
             # print(dict(cur_umi_counts))
@@ -193,7 +196,7 @@ def group_umis(fin, fout, chrom, total):
                     umi_ids[tlen][cor_umi] = cur_id
                     cur_id += 1
                 name_to_umi[r.query_name] = (umi_ids[tlen][cor_umi], cor_umi)
-            
+
             for tlen, umi, r in cur_reads:
                 if not r.is_reverse:
                     cor_umi = umi_corrector[tlen][umi]
@@ -208,7 +211,7 @@ def group_umis(fin, fout, chrom, total):
                     r.set_tag('RX', cor_umi + args.append_umi)
                     # print(f'assigned read {min(r.reference_start, r.next_reference_start)}-{abs(r.tlen)}-{umi} a UG of {umi_id}')
                     aln_out.write(r)
-                
+
             cur_umi_counts = defaultdict(lambda: defaultdict(lambda: 0))
             cur_reads = []
             cur_pos = read.reference_start if read is not None else -1
@@ -431,15 +434,15 @@ if __name__ == '__main__':
     aln = pysam.AlignmentFile(args.fin, 'rb')
     chroms = {x.contig:x.mapped for x in aln.get_index_statistics()}
     chroms = {x:chroms[x] for x in sorted(chroms.keys())}
-    
+
     # if the tmp file directory doesn't exist, make it
     if not os.path.exists(args.tmp.rsplit('/', 1)[0]):
         os.makedirs(args.tmp.rsplit('/', 1)[0])
-    
+
     # get file names for temporary files
     tmp_files = {chrom:args.tmp + args.fout.replace('/', '_') + '_' + chrom + '.bam' for chrom in chroms}
     sys.stderr.write(f'using temporary files {", ".join(tmp_files.values())}\n')
-    
+
     # start worker processes from pool
     sys.stderr.write('Grouping umis with the same template start and end\n')
     if args.threads > 1:
@@ -466,7 +469,7 @@ if __name__ == '__main__':
 if __name__ == '__main__' and args.bp_distance > 0:
     tmp_nei_files = {chrom:args.tmp + args.fout.rsplit('.', 1)[0] + '_' + chrom + '_nei.bam' for chrom in chroms}
     sys.stderr.write(f'using another set of temporary files {", ".join(tmp_nei_files.values())}\n')
-    
+
     # start worker processes from pool
     sys.stderr.write(f'Grouping umis off by up to {args.bp_distance}bp in template start and/or end\n')
     if args.threads > 1:
@@ -485,14 +488,14 @@ if __name__ == '__main__' and args.bp_distance > 0:
     else:
         for chrom in chroms:
             group_neighbors(tmp_files[chrom], tmp_nei_files[chrom], chrom, chroms[chrom])
-    
+
     sys.stderr.write(f'removing initial temporary files\n')
     for file in tmp_files.values():
         try:
             os.remove(file)
         except FileNotFoundError:
             pass
-    
+
     tmp_files = tmp_nei_files
 
 

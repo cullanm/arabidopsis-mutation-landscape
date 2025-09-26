@@ -28,8 +28,9 @@ import argparse
 
 
 parser = argparse.ArgumentParser(description='''
-Outputs metadata statistics and figures on a list of NanoSeq BAM files. Outputs {prefix}metadata.tsv with columns:|n
-sample rep sample_read_pairs_whole_genome sample_conflict_rate rep_read_pairs rep_frags rep_frags_both_strands rep_frags_call_overlap rep_frags_call_whole
+Outputs metadata statistics and figures on a list of NanoSeq BAM files. NOTE: it is highly recommended to set --region|n
+|n
+Outputs {prefix}metadata.tsv with columns:|n
 - sample: name of BAM file|n
 - rep: name of replicate extracted from the UMI tag (optional)|n
 - sample_read_pairs_whole_genome: total number of concordant read pairs in the sample. All other statistics are for only the region specified with --region|n
@@ -323,6 +324,13 @@ ax.legend([s_orange, s_blue], ['calculated', 'imputed'])
 fig.savefig(f'{args.output}conflict_rate.svg', dpi=300, bbox_inches='tight')
 
 
+# In[ ]:
+
+
+tqdm.write('conflict rates:\n', file=sys.stdout)
+tqdm.write(str(float(imputed_rates)), file=sys.stdout)
+
+
 # # Create metadata tsv
 
 # In[ ]:
@@ -419,7 +427,5 @@ fig.savefig(f'{args.output}subsampling_efficiency.svg', dpi=300, bbox_inches='ti
 # In[ ]:
 
 
-tqdm.write('conflict rates:\n', file=sys.stdout)
-tqdm.write(str(imputed_rates), file=sys.stdout)
 tqdm.write(f'completed duplex_metadata.py on {args.input}\n')
 

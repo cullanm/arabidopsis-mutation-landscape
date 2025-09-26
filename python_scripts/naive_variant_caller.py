@@ -73,14 +73,6 @@ if not exists(args.input):
     sys.stderr.write('ERROR: input file {} does not exist\n'.format(args.input))
     exit()
 
-args.output = args.output.strip()
-if len(args.output) == 0:
-    sys.stderr.write('ERROR: output file is an empty string\n')
-    exit()
-if args.output[-1] == '/':
-    sys.stderr.write('ERROR: output must be a file, not a directory\n')
-    exit()
-
 aln = pysam.AlignmentFile(args.input, 'rb') # load BAM for doing checks
 
 # assert index can be opened
@@ -90,21 +82,17 @@ except:
     sys.stderr.write('ERROR: failed to open index file {}\n'.format(args.input + '.bai'))
     exit()
 
-# assert output file can be opened
-if '/' in args.output and not os.path.isdir(args.output.rsplit('/', 1)[0]):
-    sys.stderr.write('ERROR: failed to open output directory for file {}\n'.format(args.output))
-    exit()
+if args.output and '/' in args.output:
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
-# assert tmp dir can be opened
-if '/' in args.tmp and not os.path.isdir(args.tmp.rsplit('/', 1)[0]):
-    sys.stderr.write('ERROR: failed to open tmp directory {}\n'.format(args.tmp.rsplit('/', 1)[0]))
-    exit()
+if args.tmp and '/' in args.tmp:
+    os.makedirs(os.path.dirname(args.tmp), exist_ok=True)
 
 # set threads to num chromosomes + 1 if more were allocated
 if args.threads > len(aln.get_index_statistics()) + 1:
     args.threads = len(aln.get_index_statistics()) + 1
     sys.stderr.write('WARNING: specified more threads than number of chromosomes + 1. Reducing threads to {}\n'.format(len(aln.get_index_statistics()) + 1))
-    
+
 sys.stderr.write('Running naive_variant_caller.py with arguments:\n' + '\n'.join([f'{key}={val}' for key, val in vars(args).items()]) + '\n')
 
 
@@ -119,13 +107,13 @@ for i, read in enumerate(aln.fetch()):
         sys.stderr.write('ERROR: SAM/BAM file is not coordinate sorted\n')
         exit()
     last = nex
-    
+
     try:
         read.get_tag('MD')
     except KeyError:
         sys.stderr.write('ERROR: SAM/BAM file does not contain the "MD" tag\n')
         exit()
-    
+
     if i > 1000:
         break
 
@@ -168,22 +156,22 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
     cur_pos = -1
     ready_to_flush = False
     output_file = open(output_filepath, 'w') # temporary output file
-    
+
     # initialize progress bar
     if draw_pbars:
         with lock:
             pbar = tqdm(total=total_reads, desc=contig, position=process_num, leave=True, miniters=100000, maxinterval=9999)
-    
+
     for read in aln.fetch(contig=contig):
         num_read += 1
-        
+
         # skip pairs that don't pass the mapq filter
         if read.mapq < args.min_mapq:
             continue
 
         # split md tag into matches (numbers), mismatches (letters), and deletions (carat + letter(s)). non-matches are always separated by a number
         mds = re.findall('[0-9]+|[A-Z]|\^[A-Z]+', read.get_tag('MD'))
-        
+
         # change reference N mismatches to matches (e.g. ['3', 'N', '3'] -> ['7'])
         new_mds = []
         was_n = False
@@ -197,9 +185,9 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
             else:
                 new_mds.append(md)
         mds = new_mds
-        
+
         print(mds)
-        
+
         # cigar strings include insertions, soft, and hard clipping, info not present in the MD tag
         # get the length of starting softclips and the number of clipping operations at the start
         softclip_start_len = 0
@@ -212,14 +200,14 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                 clip_cigs += 1
             else:
                 break
-                
+
         softclip_end_len = 0
         for cig in read.cigartuples[-1:-1:-1]:
             if cig[0] == 4:
                 softclip_end_len += cig[1]
             elif cig[0] != 5:
                 break
-        
+
         cur_cig = 0 # keep track of the sum of cigar element lengths
         # find the insertions in the cigar, add them to mds as "*x", where x in the length of insertion
         for cig in read.cigartuples[clip_cigs:]: # ignore the clipping cigars
@@ -249,14 +237,14 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                 with lock:
                     sys.stderr.write('WARNING: treating unexpected cigar operation "{}" as match in read:\n{}\n'.format(cig[0], read))
             cur_cig += cig[1] # note: clipping shouldn't be added here, but it doesn't matter since all remaining clipping is at the end
-        
+
         # remove spacer zeros (e.g. ['A', '0', 'T'] -> ['A', 'T'])
         mds = [md for md in mds if md != '0']
-                
+
         # example of how mds should now look: ['A', '3', 'C', 'G', '^TA', '9', '*2', '2']
-        
+
         has_bqs = read.query_qualities is not None # query_qualities can be none if the BQ field is a sigle "*"
-        
+
         # find and add all variants using md
         cur_md = 0
         total_insertion_len = 0
@@ -282,7 +270,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                     key = (read.reference_start + cur_md - total_insertion_len, md, read.query_sequence[softclip_start_len + cur_md])
                     qualities = chr(read.query_qualities[cur_md] + 33) if has_bqs else ''
                     cur_md += 1
-                
+
                 if read.is_reverse:
                     variants[key]['r_sup'] += 1
                     variants[key]['positions'].append(read.query_length - read_pos - 1 + softclip_end_len)
@@ -291,25 +279,25 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                     variants[key]['positions'].append(read_pos + softclip_start_len)
                 variants[key]['mq'] += chr(read.mapping_quality + 33)
                 variants[key]['bq'] += qualities
-    
+
         # add to read coverage array
         if read.is_reverse:
             r_coverage[read.reference_start:read.reference_start + read.reference_length] += 1
         else:
             f_coverage[read.reference_start:read.reference_start + read.reference_length] += 1
-        
+
         # periodically flush variants and coverage info out of the dictionaries
         if num_read % args.chunk_size == 0:
             if draw_pbars:
                 with lock:
                     pbar.update(args.chunk_size)
             ready_to_flush = True
-        
+
         # periodically flush variants out of the dictionary
         if (ready_to_flush and read.reference_start > cur_pos) or num_read == total_reads:
             # variants = defaultdict(variants.default_factory, {key: val for key, val in sorted(variants.items(), key=lambda ele: ele[0])}) # sort by position
             cur_pos = read.reference_start
-            
+
             to_flush = []
             for var in variants:
                 if var[0] >= cur_pos and num_read < total_reads:
@@ -320,14 +308,14 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
                     variants[var]['f_cov'] = f_coverage[var[0]]
                     variants[var]['r_cov'] = r_coverage[var[0]]
                     v = variants[var]
-                    
+
                     if not args.all_qualities:
                         v['mq'] = sum([ord(x) - 33 for x in v['mq']]) / len(v['mq'])
                         if var[2] == '*' or v['bq'] == '':
                             v['bq'] = 42
                         else:
                             v['bq'] = sum([ord(x) - 33 for x in v['bq']]) / len(v['bq'])
-                    
+
                     out_line = '\t'.join(map(str, [contig] + list(var) + [v['f_sup'], v['f_cov'], v['r_sup'], v['r_cov'], v['mq'], v['bq']]))
                     out_line += '\t' + ','.join(map(str, v['positions'])) if args.positions else ''
                     output_file.write(out_line + '\n')
@@ -346,7 +334,7 @@ def call_variants(input_filepath, contig, total_reads, contig_len, output_filepa
 if __name__ == '__main__':
     chroms = [x.contig for x in aln.get_index_statistics()]
     chroms.sort()
-    
+
     # start worker processes from pool
     sys.stderr.write('Iterating over chromosomes\n')
     tmp_files = []
