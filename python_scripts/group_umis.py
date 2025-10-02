@@ -79,7 +79,7 @@ except ValueError:
     proc = subprocess.run(f'samtools index -@ {args.threads} {args.fin}', shell=True, capture_output=True)
     if proc.returncode != 0:
         sys.stderr.write('ERROR: failed to run samtools index on input\n')
-        sys.stderr.write(proc.stderr)
+        sys.stderr.write(str(proc.stderr))
         sys.exit(1)
 
 # confirm that file is coordinate sorted and has a UMI        
@@ -503,10 +503,10 @@ if __name__ == '__main__' and args.bp_distance > 0:
 
 
 sys.stderr.write('Concatenating temporary files into final output\n')
-proc = subprocess.run(f'samtools cat -@ {args.threads} -o {args.fout} {" ".join(tmp_files.values())}', shell=True, capture_output=True)
+proc = subprocess.run(f'samtools cat -o {args.fout} {" ".join(tmp_files.values())}', shell=True, capture_output=True)
 if proc.returncode != 0:
     sys.stderr.write('ERROR: failed to run samtools cat on temporary files\n')
-    sys.stderr.write(proc.stderr)
+    sys.stderr.write(str(proc.stderr))
     sys.exit(1)
 
 # sys.stderr.write('Removing any remaining temporary files\n')

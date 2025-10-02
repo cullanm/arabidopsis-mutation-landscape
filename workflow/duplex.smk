@@ -1,4 +1,4 @@
-print('loading duplex.smk')
+sys.stderr.write('loading duplex.smk\n')
 import pandas as pd
 import glob
 import os
@@ -16,13 +16,13 @@ wildcard_constraints:
 	rep = '[^_]*'				# no _ allowed
 
 if sum((df_samples.group == 'duplex') & (df_samples.subgroup == 'swapped')) > 0:
-	print('ERROR: samples cannot have a group of "duplex" and subgroup of "swapped"')
+	sys.stderr.write('ERROR: samples cannot have a group of "duplex" and subgroup of "swapped"\n')
 	exit()
 
 # make a df of the control samples
 df_controls = df_samples[df_samples.control].drop_duplicates('group subgroup'.split())
 if len(df_controls) == 0:
-	print('ERROR: no samples labeled as control')
+	sys.stderr.write('ERROR: no samples labeled as control\n')
 
 # make a coverage bedgraph from a bam file, used in generate_duplex_blacklists
 rule coverage_bg:
@@ -89,7 +89,7 @@ rule filter_duplex_variants:
 		out = 'logs/filter_duplex_variants_{group}_{subgroup}_{rep}.out',
 		err = 'logs/filter_duplex_variants_{group}_{subgroup}_{rep}.err'
 	resources: mem_mb=4096
-	shell: 'python {script_dir}/filter_duplex_variants.py --input {input} --output {output} > {log.out} 2> {log.err}'
+	shell: 'python {script_dir}/filter_duplex_variants.py {config[duplex_filter_args]} --input {input}  --output {output} > {log.out} 2> {log.err}'
 
 rule duplex_coverage:
 	input: 
@@ -105,7 +105,7 @@ rule duplex_coverage:
 
 def warn_diff_umi(df):
 	if sum(df.umi) != len(df) and sum(df.umi) != 0:
-		print('WARNING: not all samples have the same umi column, this will make duplex_metadata and duplex_filters.svg inaccurate')
+		sys.stderr.write('WARNING: not all samples have the same umi column, this will make duplex_metadata and duplex_filters.svg inaccurate or fail\n')
 
 rule duplex_metadata:
 	input: 

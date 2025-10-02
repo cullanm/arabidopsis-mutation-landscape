@@ -79,7 +79,7 @@ parser.add_argument('-N', '--min_frac_final', dest='min_frac_final', metavar='FL
 parser.add_argument('-O', '--min_hamming_dist', dest='min_hamming_dist', metavar='INT,INT:INT:INT', type=str, default='0,0:10:1',
                    help='minimum hamming distance between k-mer starting at the fragment position and any other k-mer \
                    in the genome (default: 0,0:10:1)')
-parser.add_argument('-P', '--max_cov_percentile', dest='max_cov_percentile', metavar='FLOAT,FLOAT:FLOAT:FLOAT', type=str, default='1,0.8:1:0.01',
+parser.add_argument('-P', '--max_cov_percentile', dest='max_cov_percentile', metavar='FLOAT,FLOAT:FLOAT:FLOAT', type=str, default='1,0.8:1.02:0.01',
                    help='maximum sequencing coverage percentile of the variant position (default: 1, i.e. nothing filtered)')
 parser.add_argument('-Q', '--require_overlap', dest='require_overlap', action='store_true',
                    help='whether to require support from both forward and reverse mapping reads, i.e. variant within \
@@ -327,7 +327,7 @@ for sliding_fil in sliders:
 # In[ ]:
 
 
-fig, axs = plt.subplots(math.ceil(len(sliders) / 3), 3, figsize=(20, 12), gridspec_kw={'hspace':0.33}, sharey=True)
+fig, axs = plt.subplots(math.ceil(len(sliders) / 3), 3, figsize=(20, 15), gridspec_kw={'hspace':0.33}, sharey=True)
 for i, fil in enumerate(sliders):
     tp_rates = []
     fp_rates = []

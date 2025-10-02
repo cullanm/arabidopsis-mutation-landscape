@@ -1,6 +1,6 @@
 #!/bin/bash
 # properties = {properties}
 
-# if any rules use packages not in the base snakemake environment, module load commands can be put here
+# place any module load commands here. This may be necessary if the base snakemake environment is missing packages
 
 {exec_job}

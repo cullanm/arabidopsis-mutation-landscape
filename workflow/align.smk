@@ -1,4 +1,4 @@
-print('loading align.smk')
+sys.stderr.write('loading align.smk\n')
 import pandas as pd
 import glob
 import os
@@ -162,19 +162,22 @@ rule extract_umi:
 	output: 
 		f = 'data/fastq/{group}_{subgroup}_{rep}_1_extracted.fastq',
 		r = 'data/fastq/{group}_{subgroup}_{rep}_2_extracted.fastq'
-	shell: 'python {script_dir}/extract_umi.py --transfer_len 3 --remove_len 7 {input.f} {input.r} {output.f} {output.r}'
+	log: 'logs/extract_umi_{group}_{subgroup}_{rep}.out'
+	shell: 'python {script_dir}/extract_umi.py {config[extract_umi_args]} {input.f} {input.r} {output.f} {output.r} &> {log}'
 
 # determine whether the normal or umi extracted fastqs are needed for a sample
-def find_extracted_fastqs(w):
-	r = find_sample(w)
-	if r.umi == True:
-		return [f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_1_extracted.fastq', f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_2_extracted.fastq']
-	else:
-		return [f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_1.fastq', f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_2.fastq']
+# def find_extracted_fastqs(w):
+	# r = find_sample(w)
+	# if r.umi == True:
+		# return [f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_1_extracted.fastq', f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_2_extracted.fastq']
+	# else:
+		# return [f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_1.fastq', f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_2.fastq']
 
 # trim fastq with fastp
 rule trim_reads_paired:
-	input: find_extracted_fastqs
+	input: 
+		R1 = lambda w: f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_1{"_extracted" if find_sample(w).umi else ""}.fastq',
+		R2 = lambda w: f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_2{"_extracted" if find_sample(w).umi else ""}.fastq'
 	output:
 		R1 = temp('data/fastq/{group}_{subgroup}_{rep}_1_trim.fastq'),
 		R2 = temp('data/fastq/{group}_{subgroup}_{rep}_2_trim.fastq')
@@ -185,7 +188,7 @@ rule trim_reads_paired:
 	params:
 		adapters = lambda w: '--adapter_sequence={} --adapter_sequence_r2={}'.format(config['trim_adapter_1'], config['trim_adapter_2']) if len(config['trim_adapter_1']) > 0 else ''
 	benchmark: 'benchmarks/trim_reads_paired_{group}_{subgroup}_{rep}.tsv'
-	shell: 'fastp -i {input[0]} -I {input[1]} -o {output.R1} -O {output.R2} -h {log.log} -w {threads} {params.adapters} &> {log.out}'
+	shell: 'fastp -i {input.R1} -I {input.R2} -o {output.R1} -O {output.R2} -h {log.log} -w {threads} {params.adapters} &> {log.out}'
 
 # trim fastq with fastp
 rule trim_reads_single:
@@ -355,18 +358,18 @@ rule sam_group_umi:
 	log: 'logs/sam_group_umi_{group}_{subgroup}_{rep}.out'
 	# params: umi = lambda w: check_sample_bool(w, 'umi')
 	threads: 8
-	shell: 'python3.10 {script_dir}/group_umis.py -@ {threads} --append _{wildcards.rep} {input} {output} &> {log}'
+	shell: 'python {script_dir}/group_umis.py -@ {threads} --append _{wildcards.rep} {input} {output} &> {log}'
 
 # returns the sam file to run markdup on depending on if umis need to be grouped first
-def find_sam_markdup_input(w):
-	r = find_sample(w)
-	suffix = 'umigroup' if r.umi == True else 'sort'
-	return f'data/align/{r.group}_{r.subgroup}_{r.rep}_{suffix}.bam'
+# def find_sam_markdup_input(w):
+	# r = find_sample(w)
+	# suffix = 'umigroup' if r.umi == True else 'sort'
+	# return f'data/align/{r.group}_{r.subgroup}_{r.rep}_{suffix}.bam'
 
 # mark duplicate reads, taking into account the UMI if umi==true and marking optical duplicates if dedup_opt==true.
 # duplicate reads will have the SQ tag if an optical dup and the LB tag if a PCR dup
 rule sam_markdup:
-    input: find_sam_markdup_input
+    input: lambda w: f'data/align/{r.group}_{r.subgroup}_{r.rep}_{"umigroup" if find_sample(w).umi else "sort"}.bam'
     output: 'data/align/{group}_{subgroup}_{rep}_markdup.bam'
     log: 'logs/sam_markdup_{group}_{subgroup}_{rep}.out'
     threads: 8

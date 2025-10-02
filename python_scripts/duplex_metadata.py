@@ -220,6 +220,7 @@ for file_name in tqdm(args.input, position=0):
 
 # plot total coverage of each fragment to estimate the number of viable fragments in the library
 fig, axs = plt.subplots(sum([len(frags[s]) for s in frags]), figsize=(4, 0.5 * sum([len(frags[s]) for s in frags])), sharex=True)
+axs = [axs] if sum([len(frags[s]) for s in frags]) == 1 else axs # convert axs to a list if only one subplot
 i = 0
 for sample in tqdm(frags):
     for rep in frags[sample]:
@@ -328,7 +329,7 @@ fig.savefig(f'{args.output}conflict_rate.svg', dpi=300, bbox_inches='tight')
 
 
 tqdm.write('conflict rates:\n', file=sys.stdout)
-tqdm.write(str(float(imputed_rates)), file=sys.stdout)
+tqdm.write(str(imputed_rates), file=sys.stdout)
 
 
 # # Create metadata tsv

@@ -1,49 +1,50 @@
 import pandas as pd
 import os
+import sys
 
 ##################### Load sample_table and validate it's content
 
-print('loading sample table')
+sys.stderr.write('loading sample table\n')
 
 # load tsv containing SRRs
 df_samples = pd.read_table(workflow.basedir.rsplit('/', 1)[0] + '/' + (config['sample_table']), dtype={'run':str, 'group':str, 'subgroup':str, 'rep':str, 'paired':bool, 'aligner':str, 'umi':bool, 'dedup_pcr':bool, 'dedup_opt':bool, 'control':bool}, comment='#')
 
 # assert required columns are in sample_table
 if not {'group', 'subgroup', 'rep'}.issubset(set(df_samples.columns)):
-	print("ERROR: sample table must contain columns 'group', 'subgroup', and 'rep'")
+	sys.stderr.write("ERROR: sample table must contain columns 'group', 'subgroup', and 'rep'\n")
 	exit()
 
 # use default values for missing columns
 default_vals = {'run': 'na', 'paired': True, 'aligner':'bowtie', 'umi': False, 'dedup_pcr': True, 'dedup_opt':True, 'control':False}
 for col in default_vals:
 	if col not in df_samples.columns:
-		print(f'WARNING: {col} not provided as a df_samples column, defaulting to {default_vals[col]}')
+		sys.stderr.write(f'WARNING: {col} not provided as a df_samples column, defaulting to {default_vals[col]}\n')
 		df_samples[col] = [default_vals[col]] * len(df_samples)
 
 df_samples = df_samples.set_index('run', drop=False) # set run as index
 
 chars = ''.join(df_samples.group.tolist() + df_samples.subgroup.tolist() + df_samples.rep.tolist())
 if '.' in chars or '_' in chars or ' ' in chars:
-	print('ERROR: periods, underscores, and spaces are not allowed in the group, subgroup, or rep field of the sample table')
+	sys.stderr.write('ERROR: periods, underscores, and spaces are not allowed in the group, subgroup, or rep field of the sample table\n')
 	exit()
 
 for rep in df_samples.rep:
 	if len(rep) >= len('merged') and rep[:6] == 'merged':
-		print('ERROR: sample table may not use "merged" as a replicate name')
+		sys.stderr.write('ERROR: sample table may not use "merged" as a replicate name\n')
 		exit()
 
 for aln in df_samples.aligner:
 	if aln not in ['bowtie', 'star', 'methylpy']:
-		print('ERROR: aligner must be "bowite" "star" or "methylpy" in sample table')
+		sys.stderr.write('ERROR: aligner must be "bowite" "star" or "methylpy" in sample table\n')
 		exit()
 
 if len(df_samples) != len(df_samples.drop_duplicates('group subgroup rep'.split())):
-	print('WARNING: multiple rows in sample table with the same group, subgroup, and rep. Ignoring the following rows:')
-	print(df_samples.duplicated('group subgroup rep'.split()))
+	sys.stderr.write('WARNING: multiple rows in sample table with the same group, subgroup, and rep. Ignoring the following rows:\n')
+	sys.stderr.write(str(df_samples.duplicated('group subgroup rep'.split())) + '\n')
 	df_samples = df_samples.drop_duplicates('group subgroup rep'.split())
 
-print('running with the following samples:')
-print(df_samples)
+sys.stderr.write('running with the following samples:\n')
+sys.stderr.write(str(df_samples) + '\n')
 
 ####################### Define other useful things
 script_dir = workflow.basedir.rsplit('/', 1)[0] + '/python_scripts' # find the python script directory relative to the workflow rather than the working dir
@@ -54,13 +55,13 @@ def find_sample(w):
 		df_match = df_samples[(df_samples.group == w.group) & (df_samples.subgroup == w.subgroup)]
 		df_match = df_match.drop_duplicates(df_match.columns.difference(['run', 'rep']))
 		if len(df_match) > 1:
-			print(f'WARNING: replicates of {w.group} {w.subgroup} in sample table disagree in flag values, using the flags of the first repicate for merged files:')
-			print(df_match)
+			sys.stderr.write(f'WARNING: replicates of {w.group} {w.subgroup} in sample table disagree in flag values, using the flags of the first repicate for merged files:\n')
+			sys.stderr.write(str(df_match) + '\n')
 		return df_match.iloc[0]
 	else:
 		df_match = df_samples[(df_samples.group == w.group) & (df_samples.subgroup == w.subgroup) & (df_samples.rep == w.rep)]
 		if len(df_match) == 0:
-			print('ERROR: find_sample failed to find "{}" in sample_table'.format(w))
+			sys.stderr.write('ERROR: find_sample failed to find "{}" in sample_table \n'.format(w))
 		assert len(df_match) == 1
 		return df_match.iloc[0]
 
