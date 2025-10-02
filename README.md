@@ -3,49 +3,57 @@ Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequenci
 
 # Running the pipeline
 
-### 1. Create a directories for the code and data
+## 1. Create a directories for the code and data
 ```
 mkdir {code dir}
 mkdir {data dir}
 ```
 
-### 2. Clone the repository
+## 2. Clone the repository
 ```
 cd {code dir}
 git clone https://github.com/cullanm/arabidopsis-mutation-landscape.git .
 ```
 
-### 3. Install Mamba
-Either by following the installation instructions [here](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or loading it as a module on the cluster.
+## 3. Install Mamba
+Either by following the installation instructions [here](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) or loading it as a module on your cluster.
 
-### 4. Create a Mamba environment for Snakemake
+## 4. Create a Mamba environment for Snakemake
 ```
 mamba env create -f workflow/envs/snakemake.yaml
 ```
 
-### 5. Modify snakemake.sh (and settings.json)
-Open the script `sub_scripts/snakemake.sh` and set the HOME_DIR and SCRATCH_DIR variables to {code dir} and {data dir} respectively. Comment out SCRIPT_PATH. If running locally, change the `--profile` parameter of the snakemake command to `${HOME_DIR}/smk_profiles/local`.
+If you're not able to make this mamba environment, you can try [setting your channel priority to strict](https://conda-forge.org/docs/user/tipsandtricks/) with `conda config --set channel_priority strict` or making the environment using `workflow/envs/snakemake_export.yaml` instead. If you still aren't able to make the environment work, you can try installing the packages within `workflow/envs/snakemake.yaml` using another method such as pip or loading cluster modules (note that if loading modules, the `module load` commands need to be present in both `sub_scripts/snakemake.sh` and `smk_profiles/slurm/slurm-jobscript.sh`).
 
-If running on a SLURM cluster, you may need to change the partition name for sbatch commands found in `smk_profiles/slurm/settings.json`. 
+## 5. Modify snakemake.sh (and settings.json)
+Open the script `sub_scripts/snakemake.sh` and set the HOME_DIR and SCRATCH_DIR variables to {code dir} and {data dir} respectively. Comment out SCRIPT_PATH.
 
+#### Running on a SLURM cluster
+You may need to change the partition name in the header of `sub_scripts/snakemake.sh` and in `smk_profiles/slurm/settings.json`.
 
-### 6. Run Snakemake
-If running locally:
+#### Running locally
+If you're running the pipeline on a local machine or the cluster instructions did not work, use the alternative snakemake command in `sub_scripts/snakemake.sh`, specifying the number of cores and memory for snakemake to use in the command (and sbatch header).
+
+## 6. Run Snakemake
+#### Running on a SLURM cluster
+```
+sbatch sub_scripts/snakemake.sh
+```
+
+#### Running locally
 ```
 chmod +x sub_scripts/snakemake.sh
 sub_scripts/snakemake.sh
 ```
 
-If running on a SLURM cluster:
-```
-sbatch sub_scripts/snakemake.sh
-```
-
 # Running with your own data
-To run the pipeline with different Duplex-seq data, do the following before step 5 above:
+To run the pipeline with different Duplex-seq data, do the following before step 6 above:
 
 ### Alter `sample_table.tsv`
-Delete or comment out the existing rows of the table (apart from the header). Add a new row for each sequencing library. If using data on SRA, enter an SRA accession in the table and it will be downloaded as part of the pipeline. If using local data, move the fastq files into `{data dir}/data/fastq/` and rename them to `{group}_{subgroup}_{rep}.fastq{.gz if gzipped}` where {group} {subgroup} and {rep} are defined in `sample_table.tsv`. Then follow step 5 above.
+Delete or comment out the existing rows of the table (apart from the header). Add a new row for each sequencing library. If using data on SRA, enter an SRA accession in the table and it will be downloaded as part of the pipeline. If using local data, move the fastq files into `{data dir}/data/fastq/` and rename them to `{group}_{subgroup}_{rep}.fastq{.gz if gzipped}` where {group} {subgroup} and {rep} are defined in `sample_table.tsv`.
+
+### Alter the config file
+The file `config_files/arabidopsis.yaml` contains several settings for altering the pipeline's behavior, including specifying a different reference genome, different UMI structure (if not using xGen CS adapters), and different mutation filtering thresholds. If you're unsure of what filtering thesholds to use, I recommend running the pipeline with default parameters and viewing `{data dir}/data/metadata/duplex_filters.svg`. You can then make any changes to the filter thresholds in `config_files/arabidopsis.yaml`, delete all the filtered varaint files (`{data dir}/data/variant/*_filtered.tsv`), and rerun snakemake to regenerate them using the new thresholds.
 
 # Output
 This will produce the following output:
