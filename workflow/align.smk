@@ -369,7 +369,7 @@ rule sam_group_umi:
 # mark duplicate reads, taking into account the UMI if umi==true and marking optical duplicates if dedup_opt==true.
 # duplicate reads will have the SQ tag if an optical dup and the LB tag if a PCR dup
 rule sam_markdup:
-    input: lambda w: f'data/align/{r.group}_{r.subgroup}_{r.rep}_{"umigroup" if find_sample(w).umi else "sort"}.bam'
+    input: lambda w: f'data/align/{w.group}_{w.subgroup}_{w.rep}_{"umigroup" if find_sample(w).umi else "sort"}.bam'
     output: 'data/align/{group}_{subgroup}_{rep}_markdup.bam'
     log: 'logs/sam_markdup_{group}_{subgroup}_{rep}.out'
     threads: 8
