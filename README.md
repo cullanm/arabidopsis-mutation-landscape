@@ -1,5 +1,5 @@
 # Description
-Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequencing reveals the _Arabidopsis_ somatic mutation landscape](https://doi.org/10.1101/2025.06.15.659769). This pipeline is intended to be usable on any Duplex sequencing data and run on either a SLURM computing cluster or locally.
+Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequencing reveals the _Arabidopsis_ somatic mutation landscape](https://doi.org/10.1101/2025.06.15.659769). This pipeline is intended to be usable on any Duplex sequencing data and run on either a SLURM computing cluster or locally. All custom Duplex-seq python scripts can be found in the `python_scripts` directory and can be run directly from command line (details [below](#NanoSeq-data-processing-scripts)).
 
 # Running the pipeline
 
@@ -143,6 +143,17 @@ python {code dir}/python_scripts/visualize_duplex_filters.py --real_vars data/va
 ```
 
 # NanoSeq data processing scripts
+Many of these scripts require numpy, pandas, tqdm, and pysam to be installed. `generate_duplex_blacklists.py` also requires genmap.
+
+- [duplex_caller.py](#duplex_callerpy): makes an unfiltered table of variants, calulating the number of reads which support/cover variants on a molecule-by-molecule basis
+- [dup_informed_caller.py](#dup_informed_callerpy): makes an unfiltered table of variants, calculating the number of molecules (not reads) which support/cover a variant
+- [add_duplex_filter_columns.py](#add_duplex_filter_columnspy): adds additional information needed for filtering to the output of `duplex_caller.py`
+- [filter_duplex_variants.py](#filter_duplex_variantspy): filters the output of `add_duplex_filter_columns.py` to a final set of mutations
+- [duplex_coverage.py](#duplex_coveragepy): calculates the number of opportunities to detect a mutation at each site in the genome. Important for calculating mutation rates
+- [duplex_strand_swapper.py](#duplex_strand_swapperpy): makes swapped null libraries out of duplex-seq libraries which can be used to estimate false positive rates
+- [duplex_metadata.py](#duplex_metadatapy): reports statistics on the sequencing efficiency of duplex-seq libraries
+- [visualize_duplex_filters.py](#visualize_duplex_filterspy): visualizes how adjusting the filters would alter true and false positive rates
+
 ### duplex_caller.py
 ```
 usage: duplex_caller.py [-h] [-@ THREADS_INT] [-t TMP_STRING] [-u TAG] [-a] [-C INT] INPUT_FILE OUTPUT_FILE

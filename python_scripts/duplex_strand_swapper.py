@@ -25,16 +25,17 @@ import gtools
 parser = argparse.ArgumentParser(description='''
 Makes a randomly strand-swapped NanoSeq library from several input NanoSeq libraries. For each fragment start and end position in the input libraries, one
 set of top strand PCR duplicates (F1R2) and one set of bottom strand PCR duplicates (F2R1) is randomly selected from two different libraries. If this isn't 
-possible, nothing is output for that fragment. The UMI tag will be overwritten as {index of top strand BAM}:{top strand UMI}_{index of bot strand BAM}:{bot strand UMI}.|n
+possible, nothing is output for that fragment. The UMI tag will be overwritten as \
+{index of top strand BAM}:{top strand UMI}_{index of bot strand BAM}:{bot strand UMI}_{resample_num}.|n
 |n
 The point of this script is to make all the true mutations uncallable, while keeping the false positive rate the same. Because FPs appear in strands 
 independently, it shouldn't matter how we rearrange the strands, the likelihood of pairing two strands with the same FP remains the same. |n
 |n
 Example:|n 
 For one fragment start and end position, three libraries have 2 fragments with reads from both the top and bottom strand. Out of the 6 fragments, we randomly 
-select sample_2 umi_2 to contribute the top strand reads. Out of the 4 fragments not in sample_2, we randomly select sample_0 umi_2 to contribute the bottom 
-strand reads. One fragment will be output with the reads of sample_2 umi_2's top strand and sample_0 umi_2's bottom strand, and the umi will be 
-"2:umi_2_0:umi_2".
+select sample-2 umi-2 to contribute the top strand reads. Out of the 4 fragments not in sample-2, we randomly select sample-0 umi-2 to contribute the bottom 
+strand reads. One fragment will be output with the reads of sample-2 umi-2's top strand and sample-0 umi-2's bottom strand, and the umi will be 
+"2:umi-2_0:umi-2_0".
     ''', formatter_class=gtools.EscapeFormatter)
 parser.add_argument('-i', '--input', required=True, dest='input', metavar='FILES', type=str, nargs='+',
                    help='input NanoSeq BAM files. Must be coordinate sorted and indexed')
@@ -42,6 +43,9 @@ parser.add_argument('-o', '--output', required=True, dest='output', metavar='FIL
                    help='output strand-swapped BAM file')
 parser.add_argument('-u', '--umi', dest='umi', metavar='TAG', type=str, default=None,
                    help='name of tag which contains the fragment umi')
+parser.add_argument('-k', '--resamples', dest='resamples', metavar='INT', type=int, default=1,
+                   help='number of swapped fragments to generate for each fragment position with replacement. Should probably increase for restriction digested samples. \
+                   e.g. setting to 2 is the equivalent of running the script twice and merging the output files (default: 1)')
 parser.add_argument('-t', '--tmp', dest='tmp_prefix', metavar='PREFIX', type=str, default='tmp/',
                    help='prefix to add to temporary files. Will make any directories which do not exist (default: tmp/)')
 parser.add_argument('-@', '--threads', dest='threads', metavar='INT', type=int, default=1,
@@ -50,7 +54,9 @@ parser.add_argument('-@', '--threads', dest='threads', metavar='INT', type=int, 
 try: # run this if in a jupyter notebook
     get_ipython()
     print('Determined code is running in Jupyter')
-    args = parser.parse_args('-@ 8 --umi RG -o tmp/swapper_test.bam -i data/align/big_Col-0-1_merged.bam'.split()) # used for testing
+    if os.getcwd()[:8] != '/scratch': # switch to the scratch directory where all the data files are
+        os.chdir(f'/scratch/cam02551/{os.getcwd().split("/")[-2]}')
+    args = parser.parse_args('-@ 8 --umi RG -o tmp/swapper_test.bam -i data/align/untreated_1_merged.bam data/align/untreated_2_merged.bam'.split()) # used for testing
 except: # run this if in a terminal
     args = parser.parse_args()
 
@@ -76,7 +82,7 @@ def strand_swap(output_file, chrom):
     stream_in = gtools.BamStreamer(args.input, chrom) # iterator over reads in multiple files, returns (file index, read) tuples
     aln_out = pysam.AlignmentFile(output_file, 'wb', template=stream_in.aln_files[0])
     cur_source, cur_read = next(stream_in)
-    reverse_to_output = dict() # whenever a forward read is output, add an item of query name:new RG tag
+    reverse_to_output = defaultdict(lambda: []) # whenever a forward read is output, add an item of query name:[new RG tag1, new RG tag2,...]
     done = False
     next_update = update_interval
     while not done:
@@ -98,32 +104,36 @@ def strand_swap(output_file, chrom):
 
 
         for tlen in reads:
-            top_sources = list(set([(source, read.get_tag(args.umi)) for source, read in reads[tlen] if read.is_read1]))
-            bot_sources = list(set([(source, read.get_tag(args.umi)) for source, read in reads[tlen] if read.is_read2]))
+            for i in range(args.resamples):
+                top_sources = list(set([(source, read.get_tag(args.umi)) for source, read in reads[tlen] if read.is_read1]))
+                bot_sources = list(set([(source, read.get_tag(args.umi)) for source, read in reads[tlen] if read.is_read2]))
 
-            if len(top_sources) == 0:
-                continue
+                if len(top_sources) == 0:
+                    continue
 
-            top_sample = random.choice(top_sources)
-            bot_sources = [(source, umi) for source, umi in bot_sources if source != top_sample[0]]
+                top_sample = random.choice(top_sources)
+                bot_sources = [(source, umi) for source, umi in bot_sources if source != top_sample[0]]
 
-            if len(bot_sources) == 0:
-                continue
+                if len(bot_sources) == 0:
+                    continue
 
-            bot_sample = random.choice(bot_sources)
+                bot_sample = random.choice(bot_sources)
 
-            for source, read in reads[tlen]:
-                if (read.is_read1 and source == top_sample[0] and read.get_tag(args.umi) == top_sample[1]) or \
-                   (read.is_read2 and source == bot_sample[0] and read.get_tag(args.umi) == bot_sample[1]):
-                    read.set_tag(args.umi, f'{top_sample[0]}:{top_sample[1]}_{bot_sample[0]}:{bot_sample[1]}')
-                    aln_out.write(read)
-                    reverse_to_output[read.query_name] = f'{top_sample[0]}:{top_sample[1]}_{bot_sample[0]}:{bot_sample[1]}'
+                for source, read in reads[tlen]:
+                    if (read.is_read1 and source == top_sample[0] and read.get_tag(args.umi) == top_sample[1]) or \
+                       (read.is_read2 and source == bot_sample[0] and read.get_tag(args.umi) == bot_sample[1]):
+                        init_tag = read.get_tag(args.umi)
+                        read.set_tag(args.umi, f'{top_sample[0]}:{top_sample[1]}_{bot_sample[0]}:{bot_sample[1]}')
+                        aln_out.write(read)
+                        read.set_tag(args.umi, init_tag)
+                        reverse_to_output[read.query_name].append(f'{top_sample[0]}:{top_sample[1]}_{bot_sample[0]}:{bot_sample[1]}_{i}')
 
         # output any reverse reads 
         for read in reverse_reads:
             if read.query_name in reverse_to_output:
-                read.set_tag(args.umi, reverse_to_output[read.query_name])
-                aln_out.write(read)
+                for umi in reverse_to_output[read.query_name]:
+                    read.set_tag(args.umi, umi)
+                    aln_out.write(read)
                 del reverse_to_output[read.query_name]
 
         if cur_pos >= next_update:

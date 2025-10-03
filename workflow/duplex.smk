@@ -132,14 +132,14 @@ rule duplex_strand_swapper:
 		warn = warn_diff_umi(df_controls),
 		umi = '--umi RX' if df_controls.iloc[0].umi else '--umi RG'
 	threads: 8
-	shell: 'python {script_dir}/duplex_strand_swapper.py -@ {threads} {params.umi} --input {input.bams} --output {output} &> {log}'
+	shell: 'python {script_dir}/duplex_strand_swapper.py -@ {threads} -k {config[num_swapped_resamples]} {params.umi} --input {input.bams} --output {output} &> {log}'
 	
 rule visualize_duplex_filters:
 	input:
 		real_duplex = [f'data/variant/{r.group}_{r.subgroup}_merged_added.tsv' for r in df_controls.itertuples()],
 		real_cov = [f'data/coverage/{r.group}_{r.subgroup}_merged_duplex/' for r in df_controls.itertuples()],
-		swapped_duplex = [f'data/variant/duplex_swapped_{i}_added.tsv' for i in range(4)],
-		swapped_cov = [f'data/coverage/duplex_swapped_{i}_duplex/' for i in range(4)]
+		swapped_duplex = [f'data/variant/duplex_swapped_{i}_added.tsv' for i in range(config['num_swapped_samples'])],
+		swapped_cov = [f'data/coverage/duplex_swapped_{i}_duplex/' for i in range(config['num_swapped_samples'])]
 	output: 'data/metadata/duplex_filters.svg'
 	resources: mem_mb=32768
 	params: # need to add slashes to the end of the cov prefixes, as snakemake removes them from input

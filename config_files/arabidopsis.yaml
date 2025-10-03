@@ -28,4 +28,6 @@ optical_duplicate_dist: 2500 # passed to samtools markdup, recommend 100 for HiS
 # e.g. '--max_frag_len 800 --max_control_sup 2' may be better cutoffs if fragments are often larger than 300bp and amount of control sequencing is limited
 # see `python python_scripts/filter_duplex_variants.py --help` for default cutoffs
 # data/metadata/duplex_filters.svg may be of use in determining optimal filters
-duplex_filter_args: '--max_frag_len 800' 
+duplex_filter_args: '' 
+num_swapped_samples: 4 # number of swapped samples to make when visualizing filters
+num_swapped_resamples: 1 # number of times to make a swapped fragment at each position, should roughly the number of fragments per start-end position in the genome (often >100 for restriction digested libraries)
