@@ -1,5 +1,5 @@
 # Description
-Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequencing reveals the _Arabidopsis_ somatic mutation landscape](https://doi.org/10.1101/2025.06.15.659769). This pipeline is intended to be usable on any Duplex sequencing data and run on either a SLURM computing cluster or locally.
+Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequencing reveals the _Arabidopsis_ somatic mutation landscape](https://doi.org/10.1101/2025.06.15.659769). This pipeline can be run on either a SLURM computing cluster or locally and should work for any kind of Duplex Sequencing data (NanoSeq, BotSeqS, etc.) with or without in-read UMIs (though I recommend using UMIs if you're making libraries).
 
 # Running the pipeline
 
