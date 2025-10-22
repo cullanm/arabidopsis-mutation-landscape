@@ -23,7 +23,7 @@ Either by following the installation instructions [here](https://mamba.readthedo
 mamba env create -f workflow/envs/snakemake.yaml
 ```
 
-If you're not able to make this mamba environment, you can try [setting your channel priority to strict](https://conda-forge.org/docs/user/tipsandtricks/) with `conda config --set channel_priority strict` or making the environment using `workflow/envs/snakemake_export.yaml` instead. If you still aren't able to make the environment work, you can try installing the packages within `workflow/envs/snakemake.yaml` using another method such as pip or loading cluster modules (note that if loading modules, the `module load` commands need to be present in both `sub_scripts/snakemake.sh` and `smk_profiles/slurm/slurm-jobscript.sh`).
+If this command fails, you can try setting your channel priority to flexible with `conda config --set channel_priority flexible` (or to 'strict' if your ~/.condarc was already set to flexible) or making the environment using `workflow/envs/snakemake_export.yaml` instead. If you still aren't able to make the environment work, you can try installing the packages within `workflow/envs/snakemake.yaml` using another method such as pip or loading cluster modules (note that if loading modules, the `module load` commands need to be present in both `sub_scripts/snakemake.sh` and `smk_profiles/slurm/slurm-jobscript.sh`).
 
 ## 5. Modify snakemake.sh (and settings.json)
 Open the script `sub_scripts/snakemake.sh` and set the HOME_DIR and SCRATCH_DIR variables to {code dir} and {data dir} respectively. Comment out SCRIPT_PATH.

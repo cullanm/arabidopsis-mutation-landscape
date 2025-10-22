@@ -176,8 +176,8 @@ rule extract_umi:
 # trim fastq with fastp
 rule trim_reads_paired:
 	input: 
-		R1 = lambda w: f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_1{"_extracted" if find_sample(w).umi else ""}.fastq',
-		R2 = lambda w: f'data/fastq/{r.group}_{r.subgroup}_{r.rep}_2{"_extracted" if find_sample(w).umi else ""}.fastq'
+		R1 = lambda w: f'data/fastq/{w.group}_{w.subgroup}_{w.rep}_1{"_extracted" if find_sample(w).umi else ""}.fastq',
+		R2 = lambda w: f'data/fastq/{w.group}_{w.subgroup}_{w.rep}_2{"_extracted" if find_sample(w).umi else ""}.fastq'
 	output:
 		R1 = temp('data/fastq/{group}_{subgroup}_{rep}_1_trim.fastq'),
 		R2 = temp('data/fastq/{group}_{subgroup}_{rep}_2_trim.fastq')
