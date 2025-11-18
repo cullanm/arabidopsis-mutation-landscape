@@ -8,7 +8,6 @@
 #SBATCH --output=snakemake.out		# Standard output log
 #SBATCH --error=snakemake.err		# Standard error log
 #SBATCH --export=NONE			# do not load any env variables to compute node
-SCRIPT_PATH=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2;exit}')  # COMMENT OUT IF NOT RUNNING ON SLURM
 HOME_DIR=$(dirname $(dirname $SCRIPT_PATH))     # SET TO THE DIRECTORY OF THE GIT REPO (CODE DIR)
 SCRATCH_DIR=/scratch/cam02551/$(basename $HOME_DIR)     # SET TO THE DIRECTORY OF THE DATA (DATA DIR)
 set -euo pipefail

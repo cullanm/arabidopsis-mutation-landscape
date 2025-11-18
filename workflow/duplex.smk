@@ -88,7 +88,7 @@ rule filter_duplex_variants:
 	log: 
 		out = 'logs/filter_duplex_variants_{group}_{subgroup}_{rep}.out',
 		err = 'logs/filter_duplex_variants_{group}_{subgroup}_{rep}.err'
-	resources: mem_mb=4096
+	resources: mem_mb=lambda w: 65536 if w.group == 'Ler-0' else 4096
 	shell: 'python {script_dir}/filter_duplex_variants.py {config[duplex_filter_args]} --input {input}  --output {output} > {log.out} 2> {log.err}'
 
 rule duplex_coverage:
