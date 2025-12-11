@@ -1,5 +1,5 @@
 # Description
-Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequencing reveals the _Arabidopsis_ somatic mutation landscape](https://doi.org/10.1101/2025.06.15.659769). This pipeline can be run on either a SLURM computing cluster or locally and should work for any kind of Duplex Sequencing data (NanoSeq, BotSeqS, etc.) with or without in-read UMIs (though I recommend using UMIs if you're making libraries). All custom Duplex-seq python scripts can be found in the `python_scripts` directory and can be run directly from command line (details [below](#NanoSeq-data-processing-scripts)).
+Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequencing reveals the _Arabidopsis_ somatic mutation landscape](https://doi.org/10.1101/2025.06.15.659769). This pipeline can be run on either a SLURM computing cluster or locally and should work for any kind of Duplex Sequencing data (NanoSeq, BotSeqS, etc.) with or without in-read UMIs (though I recommend using UMIs if you're making libraries). All custom Duplex-seq python scripts can be found in the `python_scripts` directory and can be run directly from command line (details [below](#NanoSeq-data-processing-scripts)). 
 
 # Running the pipeline
 
@@ -41,6 +41,7 @@ sbatch sub_scripts/snakemake.sh
 ```
 
 #### Running locally
+Comment out the slurm version of the snakemake command in `sub_scripts/snakemake.sh` and uncomment the local version.
 ```
 chmod +x sub_scripts/snakemake.sh
 sub_scripts/snakemake.sh
@@ -75,7 +76,7 @@ This will produce the following output:
 `{data dir}/logs/`: contains printed output of all commands run. Some of these contain useful information (e.g. `filter_duplex_variants_{group}_{subgroup}_{rep}.err` contains the information of Table S5)
 
 # Producing figures
-Most of the figures were generated in `lab_notebook/mutation_landscape_figures.ipynb`. Before running this notebook, you'll need to run the whole pipeline and run/follow the instructions in `lab_notebook/reformatting_ma_line_muts.ipynb`. If you're unable to get the pipeline running, you can download the unfiltered variants and callable coverage at this [Zenodo repository](). The unfiltered variants must first be filtered using `python_scripts/filter_duplex_variants.py` with default parameters.
+Most of the figures were generated in `lab_notebook/mutation_landscape_figures.ipynb`. Before running this notebook, you'll need to run the whole pipeline and run/follow the instructions in `lab_notebook/reformatting_ma_line_muts.ipynb`. If you're unable to get the pipeline running, you can download the unfiltered variants and callable coverage at this [Zenodo repository](https://doi.org/10.5281/zenodo.17155160). The unfiltered variants must first be filtered using `python_scripts/filter_duplex_variants.py` with default parameters. Note that running this pipeline as is will report more mutations than supplemental dataset 1. This is because SRA does not store read names (and thus spot coordinates) making optical duplicates impossible to filter. If it's necessary to exactly 
 
 # Command list
 If Snakemake isn't working or you don't want to use it. Here's a list of the commands needed to produce the output. Only commands for sample untreated_1_a are shown here. These commands should all be run from {data dir}.
@@ -142,7 +143,7 @@ python {code dir}/python_scripts/duplex_coverage.py -@ 8 --umi RG --blacklist da
 python {code dir}/python_scripts/visualize_duplex_filters.py --real_vars data/variant/untreated_1_merged_added.tsv data/variant/untreated_2_merged_added.tsv data/variant/untreated_3_merged_added.tsv data/variant/untreated_4_merged_added.tsv data/variant/untreated_5_merged_added.tsv data/variant/untreated_6_merged_added.tsv data/variant/untreated_7_merged_added.tsv data/variant/untreated_8_merged_added.tsv --swapped_vars data/variant/duplex_swapped_0_added.tsv data/variant/duplex_swapped_1_added.tsv data/variant/duplex_swapped_2_added.tsv data/variant/duplex_swapped_3_added.tsv --real_cov data/coverage/untreated_1_merged_duplex data/coverage/untreated_2_merged_duplex data/coverage/untreated_3_merged_duplex data/coverage/untreated_4_merged_duplex data/coverage/untreated_5_merged_duplex data/coverage/untreated_6_merged_duplex data/coverage/untreated_7_merged_duplex data/coverage/untreated_8_merged_duplex/ --swapped_cov data/coverage/duplex_swapped_0_duplex data/coverage/duplex_swapped_1_duplex data/coverage/duplex_swapped_2_duplex data/coverage/duplex_swapped_3_duplex/ --output data/metadata/duplex_filters.svg &> logs/visualize_duplex_filters.out
 ```
 
-# NanoSeq data processing scripts
+# Custom scripts
 Many of these scripts require numpy, pandas, tqdm, and pysam to be installed. `generate_duplex_blacklists.py` also requires genmap.
 
 - [duplex_caller.py](#duplex_callerpy): makes an unfiltered table of variants, calulating the number of reads which support/cover variants on a molecule-by-molecule basis
@@ -198,6 +199,11 @@ options:
   -C INT, --chunk_size INT
                         No effect on output. Number of reads to process before flushing buffered information. Increasing may speed up runtime, especially for high-coverage samples. Decreasing lowers memory requirement (default: 10000)
 ```
+Example output:
+```
+chrom   pos     ref     alt     frag_start      frag_len        frag_umi                f_read1_sup     f_read1_cov     r_read1_sup     r_read1_cov     f_sup   f_cov   r_sup   r_cov   f_read1_conc    r_read1_conc    mq      bq      end_mismatch_rate
+Chr1    1172    T       C       1169            135             big_Col-0_1c_filtered   1               10              1               12              0       11     2        11      0               0               KK      -I      0.023
+```
 
 ### dup_informed_caller.py
 ```
@@ -243,6 +249,11 @@ options:
   -e, --end_dist        Report the distance from fragment end of each supporting read as an extra column (default: not reported)
   -C INT, --chunk_size INT
                         No effect on output. Number of reads to process before flushing buffered information. Increasing may speed up runtime, especially for high-coverage samples. Decreasing lowers memory requirement (default: 10000)
+```
+Example output:
+```
+chrom   pos     ref     alt     f_sup   f_cov   r_sup   r_cov   mq      bq
+Chr1    34144   T       C       2       493     1       492     KK      II
 ```
 
 ### generate_duplex_blacklists.py
