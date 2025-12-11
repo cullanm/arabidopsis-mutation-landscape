@@ -90,7 +90,7 @@ bowtie2-build --threads 1 data/ref/ref.fa data/ref/bowtie_index/index &> logs/re
 
 # fetch from sra
 prefetch SRR33007850 --max-size 100GB -O data/fastq &> logs/fetch_srr_SRR33007850.out
-fasterq-dump data/fastq/SRR33007850 -O data/fastq -t tmp/ -e 4 &> logs/extract_srr_paired_SRR33007850.out
+fasterq-dump data/fastq/SRR33007850 -O data/fastq -t tmp/ -e 4 --seq-defline "@$sn" --qual-defline "+" &> logs/extract_srr_paired_SRR33007850.out
 mv data/fastq/SRR33007850_1.fastq data/fastq/untreated_1_a_1.fastq
 
 # trim reads
@@ -99,7 +99,7 @@ fastp -i data/fastq/untreated_1_a_1.fastq -I data/fastq/untreated_1_a_2.fastq -o
 # align reads
 bowtie2 -x data/ref/bowtie_index/index -1 data/fastq/untreated_1_a_1_trim.fastq -2 data/fastq/untreated_1_a_2_trim.fastq -S data/align/untreated_1_a_bowtie.sam -p 16 --time -X 800 &> logs/align_fastq_bowtie_untreated_1_a.out
 
-# sort, mark duplicates, and filter reads (note: filtering of optical duplicates will not occur if using data from SRA, as read names are overwritten. This may slightly alter the output. Reach out to the corresponding author if original reads are needed)
+# sort, mark duplicates, and filter reads
 samtools fixmate -@ 8 -u -m data/align/untreated_1_a_bowtie.sam data/align/untreated_1_a_fixmate.bam &> logs/sam_fixmate_untreated_1_a.out
 sambamba sort -t 12 -m 512MiB --compression-level 1 -o data/align/untreated_1_a_sort.bam data/align/untreated_1_a_fixmate.bam &> logs/sam_sort_untreated_1_a.out
 samtools markdup -@ 8  -d 2500 -s data/align/untreated_1_a_sort.bam data/align/untreated_1_a_markdup.bam &> logs/sam_markdup_untreated_1_a.out
