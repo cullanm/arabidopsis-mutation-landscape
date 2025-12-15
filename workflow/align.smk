@@ -131,7 +131,7 @@ rule extract_srr_single:
 	output: temp('data/fastq/{srr}.fastq')
 	log: 'logs/extract_srr_single_{srr}.out'
 	threads: 4
-	shell: 'fasterq-dump {input} -O data/fastq -t tmp/ --threads {threads} --seq-defline "@$sn" --qual-defline "+" &> {log}' # use original read name and minimal qual defline
+	shell: 'fasterq-dump {input} -O data/fastq -t tmp/ --threads {threads} --split-files --seq-defline \'@$sn\' --qual-defline \'+\' &> {log}' # use original read name and minimal qual defline
 
 # extract the forward and reverse fastq files from a paired end prefetched SRR using SRA-tools
 rule extract_srr_paired:
@@ -141,7 +141,7 @@ rule extract_srr_paired:
 		r = temp('data/fastq/{srr}_2.fastq')		# reverse
 	log: 'logs/extract_srr_paired_{srr}.out'
 	threads: 4
-	shell: 'fasterq-dump {input} -O data/fastq -t tmp/ --threads {threads} --seq-defline "@$sn" --qual-defline "+" &> {log}'
+	shell: 'fasterq-dump {input} -O data/fastq -t tmp/ --threads {threads} --split-files --seq-defline \'@$sn\' --qual-defline \'+\' &> {log}'
 
 # return the name of an SRR fastq file
 def find_srr_fastq(w):
