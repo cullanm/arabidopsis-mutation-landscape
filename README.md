@@ -3,7 +3,7 @@ Processing pipeline for nanorate sequencing data (NanoSeq) in [Nanorate sequenci
 
 # Running the pipeline
 
-## 1. Create a directories for the code and data
+## 1. Create directories for the code and data
 ```
 mkdir {code dir}
 mkdir {data dir}
@@ -76,7 +76,7 @@ This will produce the following output:
 `{data dir}/logs/`: contains printed output of all commands run. Some of these contain useful information (e.g. `filter_duplex_variants_{group}_{subgroup}_{rep}.err` contains the information of Table S5)
 
 # Producing figures
-Most of the figures were generated in `lab_notebook/mutation_landscape_figures.ipynb`. Before running this notebook, you'll need to run the whole pipeline and run/follow the instructions in `lab_notebook/reformatting_ma_line_muts.ipynb`. If you're unable to get the pipeline running, you can download the unfiltered variants and callable coverage at this [Zenodo repository](https://doi.org/10.5281/zenodo.17155160). The unfiltered variants must first be filtered using `python_scripts/filter_duplex_variants.py` with default parameters. Note that running this pipeline as is will report more mutations than supplemental dataset 1. This is because SRA does not store read names (and thus spot coordinates) making optical duplicates impossible to filter. If it's necessary to exactly 
+Most of the figures were generated in `lab_notebook/mutation_landscape_figures.ipynb`. Before running this notebook, you'll need to run the whole pipeline and run/follow the instructions in `lab_notebook/reformatting_ma_line_muts.ipynb`. If you're unable to get the pipeline running, you can download the unfiltered variants and callable coverage at this [Zenodo repository](https://doi.org/10.5281/zenodo.17155160). The unfiltered variants must first be filtered using `python_scripts/filter_duplex_variants.py` with default parameters.
 
 # Command list
 If Snakemake isn't working or you don't want to use it. Here's a list of the commands needed to produce the output. Only commands for sample untreated_1_a are shown here. These commands should all be run from {data dir}.
